@@ -3,123 +3,217 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Paiho Shoelace Snake - 手機版</title>
+    <title>Paiho Shoelace Snake</title>
     <style>
+        :root {
+            --paiho-red: #e60012;
+            --paiho-black: #1a1a1a;
+            --paiho-white: #ffffff;
+            --bg-gray: #f8f8f8;
+        }
         body {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            min-height: 100vh;
+            justify-content: space-between;
+            height: 100vh;
             margin: 0;
-            background-color: #f4f4f4;
-            font-family: Arial, sans-serif;
-            touch-action: manipulation; /* 防止雙擊縮放 */
+            background-color: var(--paiho-black);
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            overflow: hidden;
         }
-        #gameCanvas {
-            border: 4px solid #0056a4;
-            background-color: #fff;
-            max-width: 90vw;
-            max-height: 90vw;
+        .header {
+            padding: 20px 0 10px;
+            text-align: center;
+            width: 100%;
+            background: var(--paiho-white);
+            border-bottom: 4px solid var(--paiho-red);
         }
-        .controls {
-            display: grid;
-            grid-template-columns: repeat(3, 70px);
-            grid-gap: 10px;
-            margin-top: 20px;
+        .brand-name {
+            color: var(--paiho-black);
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 2px;
         }
-        .btn {
-            width: 70px;
-            height: 70px;
-            background-color: #0056a4;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            font-size: 24px;
+        .brand-name span { color: var(--paiho-red); }
+        .status-row {
+            display: flex;
+            justify-content: space-around;
+            font-size: 15px;
+            font-weight: bold;
+            color: var(--paiho-black);
+            margin-top: 8px;
+        }
+        #game-container {
+            flex-grow: 1;
             display: flex;
             align-items: center;
             justify-content: center;
+            width: 100%;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+        canvas {
+            background-color: var(--paiho-white);
+            border: 2px solid var(--paiho-red);
+            border-radius: 4px;
+            box-shadow: 0 0 20px rgba(255,0,0,0.2);
+            max-width: 100%;
+            max-height: 100%;
+        }
+        /* 操控區 */
+        .controls-wrapper {
+            padding-bottom: 40px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+        .joypad {
+            display: grid;
+            grid-template-columns: repeat(3, 65px);
+            grid-template-rows: repeat(2, 65px);
+            gap: 15px;
+        }
+        .btn {
+            width: 65px;
+            height: 65px;
+            background-color: var(--paiho-red);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 5px 0 #b3000e;
+            transition: all 0.05s;
             -webkit-tap-highlight-color: transparent;
         }
-        .btn:active { background-color: #4a90e2; }
-        .up { grid-column: 2; }
-        .left { grid-column: 1; }
-        .right { grid-column: 3; }
-        .down { grid-column: 2; }
-        .status-bar { margin-top: 15px; font-weight: bold; }
+        .btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 #b3000e;
+        }
+        .up { grid-column: 2; grid-row: 1; }
+        .left { grid-column: 1; grid-row: 2; }
+        .down { grid-column: 2; grid-row: 2; }
+        .right { grid-column: 3; grid-row: 2; }
+
+        #direction-text { color: var(--paiho-red); border-bottom: 2px solid; }
     </style>
 </head>
 <body>
 
-    <div style="text-align: center;">
-        <h3 style="margin: 5px;">Paiho Shoelace Snake</h3>
-        <div class="status-bar">穿孔: <span id="score">0</span> | <span id="direction">準備中</span></div>
+    <div class="header">
+        <div class="brand-name">PAIHO <span>TAIWAN</span></div>
+        <div class="status-row">
+            <div>穿孔得分: <span id="score">0</span></div>
+            <div>狀態: <span id="direction-text">準備穿孔</span></div>
+        </div>
     </div>
 
-    <canvas id="gameCanvas" width="300" height="300"></canvas>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+    </div>
 
-    <div class="controls">
-        <button class="btn up" onclick="setDir(0, -1)">↑</button>
-        <button class="btn left" onclick="setDir(-1, 0)">←</button>
-        <button class="btn right" onclick="setDir(1, 0)">→</button>
-        <button class="btn down" onclick="setDir(0, 1)">↓</button>
+    <div class="controls-wrapper">
+        <div class="joypad">
+            <button class="btn up" onclick="setDir(0, -1)">↑</button>
+            <button class="btn left" onclick="setDir(-1, 0)">←</button>
+            <button class="btn down" onclick="setDir(0, 1)">↓</button>
+            <button class="btn right" onclick="setDir(1, 0)">→</button>
+        </div>
     </div>
 
 <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
     const scoreElement = document.getElementById("score");
-    const dirElement = document.getElementById("direction");
+    const dirElement = document.getElementById("direction-text");
 
-    const gridSize = 15;
-    const tileCount = canvas.width / gridSize;
+    const container = document.getElementById("game-container");
+    const size = Math.min(container.clientWidth - 30, container.clientHeight - 30);
+    canvas.width = size;
+    canvas.height = size;
+
+    const gridSize = 20;
+    const tileCount = Math.floor(canvas.width / gridSize);
+    const renderSize = canvas.width / tileCount;
+
     let score = 0, dx = 0, dy = 0, holeCount = 0;
     let snake = [{x: 10, y: 10}, {x: 10, y: 11}, {x: 10, y: 12}];
     let food = {x: 5, y: 5};
+    let lastTime = 0;
+    const speed = 120; 
 
-    function main() {
+    function gameLoop(currentTime) {
+        window.requestAnimationFrame(gameLoop);
+        if (currentTime - lastTime < speed) return;
+        lastTime = currentTime;
+
         if (didGameEnd()) {
-            alert("遊戲結束！穿孔次數: " + score);
+            alert("遊戲結束！總穿孔數: " + score);
             resetGame();
+            return;
         }
-        setTimeout(() => {
-            clearCanvas();
-            drawFood();
-            advanceSnake();
-            drawSnake();
-            main();
-        }, 150);
+        update();
+        draw();
+    }
+
+    function update() {
+        if (dx === 0 && dy === 0) return;
+        const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+        snake.unshift(head);
+
+        if (snake[0].x === food.x && snake[0].y === food.y) {
+            score++;
+            holeCount++;
+            scoreElement.innerHTML = score;
+            dirElement.innerHTML = (holeCount % 2 === 1) ? "由上往下 ↓" : "由下往上 ↑";
+            createFood();
+        } else {
+            snake.pop();
+        }
+    }
+
+    function draw() {
+        // 背景格線
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.strokeStyle = "#f0f0f0";
+        for(let i=0; i<=tileCount; i++) {
+            ctx.beginPath(); ctx.moveTo(i*renderSize, 0); ctx.lineTo(i*renderSize, canvas.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i*renderSize); ctx.lineTo(canvas.width, i*renderSize); ctx.stroke();
+        }
+
+        // 畫鞋眼孔 (Eyelet)
+        ctx.fillStyle = "#1a1a1a";
+        ctx.beginPath();
+        ctx.arc(food.x * renderSize + renderSize/2, food.y * renderSize + renderSize/2, renderSize/3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#ccc";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 畫鞋帶 (Shoelace Snake)
+        snake.forEach((part, i) => {
+            // 使用百和紅，頭部深紅
+            ctx.fillStyle = (i === 0) ? "#b3000e" : "#e60012";
+            ctx.beginPath();
+            ctx.roundRect(part.x * renderSize + 1, part.y * renderSize + 1, renderSize - 2, renderSize - 2, 4);
+            ctx.fill();
+            
+            // 模擬鞋帶邊緣
+            if (i > 0) {
+                ctx.strokeStyle = "rgba(0,0,0,0.1)";
+                ctx.stroke();
+            }
+        });
     }
 
     function setDir(x, y) {
         if ((x === -dx && x !== 0) || (y === -dy && y !== 0)) return;
         dx = x; dy = y;
-    }
-
-    function clearCanvas() {
-        ctx.fillStyle = "white";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
-    function drawSnake() {
-        snake.forEach((part, i) => {
-            ctx.fillStyle = (i === 0) ? "#0056a4" : "#4a90e2";
-            ctx.beginPath();
-            ctx.roundRect(part.x * gridSize, part.y * gridSize, gridSize-1, gridSize-1, 4);
-            ctx.fill();
-        });
-    }
-
-    function advanceSnake() {
-        const head = {x: snake[0].x + dx, y: snake[0].y + dy};
-        snake.unshift(head);
-        if (snake[0].x === food.x && snake[0].y === food.y) {
-            score++;
-            holeCount++;
-            scoreElement.innerHTML = score;
-            dirElement.innerHTML = (holeCount % 2 === 1) ? "由上往下" : "由下往上";
-            createFood();
-        } else { snake.pop(); }
     }
 
     function didGameEnd() {
@@ -132,23 +226,18 @@
     function createFood() {
         food.x = Math.floor(Math.random() * tileCount);
         food.y = Math.floor(Math.random() * tileCount);
-    }
-
-    function drawFood() {
-        ctx.fillStyle = "#333";
-        ctx.beginPath();
-        ctx.arc(food.x * gridSize + gridSize/2, food.y * gridSize + gridSize/2, gridSize/3, 0, Math.PI * 2);
-        ctx.fill();
+        snake.forEach(part => { if(part.x === food.x && part.y === food.y) createFood(); });
     }
 
     function resetGame() {
         score = 0; holeCount = 0; dx = 0; dy = 0;
         snake = [{x: 10, y: 10}, {x: 10, y: 11}, {x: 10, y: 12}];
+        dirElement.innerHTML = "準備穿孔";
         createFood();
     }
 
     createFood();
-    main();
+    window.requestAnimationFrame(gameLoop);
 </script>
 </body>
 </html>
