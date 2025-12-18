@@ -2,46 +2,67 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <title>Paiho Shoelace Snake - 台灣百和鞋帶貪食蛇</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Paiho Shoelace Snake - 手機版</title>
     <style>
         body {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
             background-color: #f4f4f4;
-            font-family: "Microsoft JhengHei", Arial, sans-serif;
+            font-family: Arial, sans-serif;
+            touch-action: manipulation; /* 防止雙擊縮放 */
         }
-        canvas {
-            border: 5px solid #0056a4; /* 百和藍色調 */
-            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+        #gameCanvas {
+            border: 4px solid #0056a4;
             background-color: #fff;
+            max-width: 90vw;
+            max-height: 90vw;
         }
-        .info {
-            text-align: center;
-            margin-bottom: 10px;
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 70px);
+            grid-gap: 10px;
+            margin-top: 20px;
         }
-        .status-bar {
-            margin-top: 10px;
-            font-weight: bold;
-            color: #333;
+        .btn {
+            width: 70px;
+            height: 70px;
+            background-color: #0056a4;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-tap-highlight-color: transparent;
         }
+        .btn:active { background-color: #4a90e2; }
+        .up { grid-column: 2; }
+        .left { grid-column: 1; }
+        .right { grid-column: 3; }
+        .down { grid-column: 2; }
+        .status-bar { margin-top: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="info">
-        <h2>Paiho Shoelace Snake</h2>
-        <p>使用方向鍵控制「Shoelace」（鞋帶）穿過「Eyelet」（鞋眼孔）</p>
+    <div style="text-align: center;">
+        <h3 style="margin: 5px;">Paiho Shoelace Snake</h3>
+        <div class="status-bar">穿孔: <span id="score">0</span> | <span id="direction">準備中</span></div>
     </div>
 
-    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <canvas id="gameCanvas" width="300" height="300"></canvas>
 
-    <div class="status-bar">
-        得分: <span id="score">0</span> | 
-        穿孔狀態: <span id="direction">準備穿孔</span>
+    <div class="controls">
+        <button class="btn up" onclick="setDir(0, -1)">↑</button>
+        <button class="btn left" onclick="setDir(-1, 0)">←</button>
+        <button class="btn right" onclick="setDir(1, 0)">→</button>
+        <button class="btn down" onclick="setDir(0, 1)">↓</button>
     </div>
 
 <script>
@@ -50,157 +71,84 @@
     const scoreElement = document.getElementById("score");
     const dirElement = document.getElementById("direction");
 
-    const gridSize = 20;
+    const gridSize = 15;
     const tileCount = canvas.width / gridSize;
-
-    let score = 0;
-    let dx = 0;
-    let dy = 0;
-    
-    // 蛇段：x, y 座標
-    let snake = [
-        {x: 10, y: 10},
-        {x: 10, y: 11},
-        {x: 10, y: 12}
-    ];
-
+    let score = 0, dx = 0, dy = 0, holeCount = 0;
+    let snake = [{x: 10, y: 10}, {x: 10, y: 11}, {x: 10, y: 12}];
     let food = {x: 5, y: 5};
-    let holeCount = 0; // 用來計算穿孔次數
-
-    // 監聽鍵盤
-    document.addEventListener("keydown", changeDirection);
 
     function main() {
         if (didGameEnd()) {
-            alert("遊戲結束！總計穿孔次數: " + score);
+            alert("遊戲結束！穿孔次數: " + score);
             resetGame();
         }
-
-        setTimeout(function onTick() {
+        setTimeout(() => {
             clearCanvas();
             drawFood();
             advanceSnake();
             drawSnake();
             main();
-        }, 100);
+        }, 150);
+    }
+
+    function setDir(x, y) {
+        if ((x === -dx && x !== 0) || (y === -dy && y !== 0)) return;
+        dx = x; dy = y;
     }
 
     function clearCanvas() {
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // 畫格線增加質感
-        ctx.strokeStyle = "#eee";
-        for(let i=0; i<canvas.width; i+=gridSize) {
-            ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke();
-        }
     }
 
     function drawSnake() {
-        snake.forEach((part, index) => {
-            // 鞋帶主體顏色 (台灣百和品牌色系參考)
-            ctx.fillStyle = (index === 0) ? "#0056a4" : "#4a90e2";
-            ctx.strokeStyle = "#fff";
-            
-            // 模擬鞋帶圓潤感
+        snake.forEach((part, i) => {
+            ctx.fillStyle = (i === 0) ? "#0056a4" : "#4a90e2";
             ctx.beginPath();
-            ctx.roundRect(part.x * gridSize, part.y * gridSize, gridSize - 2, gridSize - 2, 5);
+            ctx.roundRect(part.x * gridSize, part.y * gridSize, gridSize-1, gridSize-1, 4);
             ctx.fill();
-            ctx.stroke();
         });
     }
 
     function advanceSnake() {
         const head = {x: snake[0].x + dx, y: snake[0].y + dy};
         snake.unshift(head);
-
-        const didEatFood = snake[0].x === food.x && snake[0].y === food.y;
-        if (didEatFood) {
+        if (snake[0].x === food.x && snake[0].y === food.y) {
             score++;
             holeCount++;
             scoreElement.innerHTML = score;
-            
-            // 更新穿孔邏輯文字
-            if (holeCount % 2 === 1) {
-                dirElement.innerHTML = "由上往下 (Top-down)";
-                dirElement.style.color = "#d9534f"; // 示意穿入
-            } else {
-                dirElement.innerHTML = "由下往上 (Bottom-up)";
-                dirElement.style.color = "#5cb85c"; // 示意穿出
-            }
-
+            dirElement.innerHTML = (holeCount % 2 === 1) ? "由上往下" : "由下往上";
             createFood();
-        } else {
-            snake.pop();
-        }
+        } else { snake.pop(); }
     }
 
     function didGameEnd() {
         for (let i = 4; i < snake.length; i++) {
             if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) return true;
         }
-        const hitLeftWall = snake[0].x < 0;
-        const hitRightWall = snake[0].x > tileCount - 1;
-        const hitTopWall = snake[0].y < 0;
-        const hitBottomWall = snake[0].y > tileCount - 1;
-        return hitLeftWall || hitRightWall || hitTopWall || hitBottomWall;
+        return snake[0].x < 0 || snake[0].x >= tileCount || snake[0].y < 0 || snake[0].y >= tileCount;
     }
 
     function createFood() {
         food.x = Math.floor(Math.random() * tileCount);
         food.y = Math.floor(Math.random() * tileCount);
-        // 確保食物不會生在蛇身上
-        snake.forEach(function isFoodOnSnake(part) {
-            if (part.x == food.x && part.y == food.y) createFood();
-        });
     }
 
     function drawFood() {
-        // 繪製鞋眼孔 (Eyelet)
-        ctx.fillStyle = "#333"; // 金屬孔洞感
+        ctx.fillStyle = "#333";
         ctx.beginPath();
-        ctx.arc(food.x * gridSize + gridSize/2, food.y * gridSize + gridSize/2, gridSize/2.5, 0, Math.PI * 2);
+        ctx.arc(food.x * gridSize + gridSize/2, food.y * gridSize + gridSize/2, gridSize/3, 0, Math.PI * 2);
         ctx.fill();
-        
-        // 內圈裝飾
-        ctx.strokeStyle = "#999";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
-
-    function changeDirection(event) {
-        const LEFT_KEY = 37;
-        const RIGHT_KEY = 39;
-        const UP_KEY = 38;
-        const DOWN_KEY = 40;
-
-        const keyPressed = event.keyCode;
-        const goingUp = dy === -1;
-        const goingDown = dy === 1;
-        const goingRight = dx === 1;
-        const goingLeft = dx === -1;
-
-        if (keyPressed === LEFT_KEY && !goingRight) { dx = -1; dy = 0; }
-        if (keyPressed === UP_KEY && !goingDown) { dx = 0; dy = -1; }
-        if (keyPressed === RIGHT_KEY && !goingLeft) { dx = 1; dy = 0; }
-        if (keyPressed === DOWN_KEY && !goingUp) { dx = 0; dy = 1; }
     }
 
     function resetGame() {
-        score = 0;
-        holeCount = 0;
+        score = 0; holeCount = 0; dx = 0; dy = 0;
         snake = [{x: 10, y: 10}, {x: 10, y: 11}, {x: 10, y: 12}];
-        dx = 0; dy = 0;
-        scoreElement.innerHTML = score;
-        dirElement.innerHTML = "準備穿孔";
         createFood();
     }
 
-    // 啟動遊戲
     createFood();
     main();
-
 </script>
 </body>
 </html>
