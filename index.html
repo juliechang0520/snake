@@ -3,165 +3,286 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>PAIHO 3D Interactive Rope</title>
+    <title>PAIHO 3D Snake - Lace Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root { --paiho-red: #D31A24; }
-        * { touch-action: none; -webkit-user-select: none; box-sizing: border-box; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #f1f5f9; overflow: hidden; position: fixed; }
-        #game-container { cursor: move; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        #root { height: 100vh; display: flex; flex-direction: column; }
     </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@19.0.0",
+        "react-dom": "https://esm.sh/react-dom@19.0.0",
+        "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+        "three": "https://esm.sh/three@0.160.0"
+      }
+    }
+    </script>
 </head>
-<body class="flex flex-col h-screen">
+<body>
+    <div id="root"></div>
 
-<header class="h-14 flex items-center justify-between px-6 bg-white border-b border-slate-200 z-30 shadow-sm">
-    <span class="font-black text-slate-900 tracking-tighter text-xl">PAIHO <span class="text-red-600">SNAKE</span></span>
-    <div class="bg-slate-50 px-4 py-1 rounded-full border border-slate-200 font-bold">
-        SCORE: <span id="score-val" class="text-red-600">0</span>
-    </div>
-</header>
+    <script type="module">
+        import React, { useState, useRef, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react';
+        import ReactDOM from 'react-dom/client';
+        import * as THREE from 'three';
 
-<div id="game-container" class="flex-1 relative bg-slate-100">
-    <div id="ui-hint" class="absolute top-4 left-4 bg-black/50 text-white text-xs px-3 py-1 rounded-full pointer-events-none">
-        拖曳畫面可旋轉視角 360°
-    </div>
-</div>
+        // --- CONSTANTS ---
+        const COLORS = {
+            PAIHO_RED: '#D31A24', 
+            PAIHO_DARK_RED: '#800D12',
+            GOLD: '#D4AF37',
+            DARK_BG: '#F1F5F9',   
+            GROUND: '#FFFFFF',    
+            GRID: '#CBD5E1',      
+            HOLE_INNER: '#0F172A',
+            UI_BG: '#FFFFFF', 
+            BORDER: '#E2E8F0',
+            METAL_GOLD: '#F59E0B', 
+            CHROME: '#94A3B8',
+        };
 
-<div id="controls" class="h-44 bg-[#d1d9e6] grid grid-cols-3 grid-rows-2 items-center justify-items-center p-4">
-    <button class="w-14 h-14 bg-red-600 rounded-full text-white shadow-[0_4px_0_#900] active:translate-y-1 col-start-2" onclick="setDir(0,1)">▲</button>
-    <button class="w-14 h-14 bg-red-600 rounded-full text-white shadow-[0_4px_0_#900] active:translate-y-1 col-start-1 row-start-2" onclick="setDir(-1,0)">◀</button>
-    <button class="w-14 h-14 bg-red-600 rounded-full text-white shadow-[0_4px_0_#900] active:translate-y-1 col-start-2 row-start-2" onclick="setDir(0,-1)">▼</button>
-    <button class="w-14 h-14 bg-red-600 rounded-full text-white shadow-[0_4px_0_#900] active:translate-y-1 col-start-3 row-start-2" onclick="setDir(1,0)">▶</button>
-</div>
+        const ROPE_TEXTURE_URL = 'https://material.paiho.com/upload/BRD2147-J01F2.jpg';
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+        const GAME_CONFIG = {
+            GRID_SIZE: 2.0,        
+            INITIAL_SEGMENTS: 80,  
+            MAX_SEGMENTS: 1000,    
+            SEGMENT_LENGTH: 0.1,  
+            ROPE_RADIUS: 0.5,      
+            ROPE_THICKNESS: 0.15,  
+            MOVE_SPEED: 0.22,      
+            AUTO_SPEED: 0.45,       
+            THRESHOLD_DISTANCE: 1.0, 
+            EYELET_RADIUS: 1.4,    
+            BOUNDS: 24,            
+            UPPER_Y: 0.6,          
+            LOWER_Y: -2.5,         
+            GROWTH_AMOUNT: 20,     
+            AGLET_LENGTH: 2.5,     
+        };
 
-<script>
-    let scene, camera, renderer, ropeParts = [], eyelet;
-    let targetPos = new THREE.Vector3(0, 0.4, 0);
-    let currentDir = new THREE.Vector3(0, 0, -1);
-    let nextDir = new THREE.Vector3(0, 0, -1);
-    let score = 0, threadStep = 0, rotationAngle = Math.PI / 4;
-    let isDragging = false, lastMouseX = 0;
-
-    function init() {
-        const container = document.getElementById('game-container');
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf1f5f9);
-
-        const aspect = container.clientWidth / container.clientHeight;
-        const d = 12;
-        camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 1000);
-        updateCamera();
-
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(container.clientWidth, container.clientHeight);
-        renderer.shadowMap.enabled = true;
-        container.appendChild(renderer.domElement);
-
-        const loader = new THREE.TextureLoader();
-        const ropeTex = loader.load('https://material.paiho.com/upload/BRD2147-J01F2.jpg');
-        ropeTex.wrapS = ropeTex.wrapT = THREE.RepeatWrapping;
-
-        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-        const light = new THREE.DirectionalLight(0xffffff, 0.6);
-        light.position.set(10, 20, 10);
-        light.castShadow = true;
-        scene.add(light);
-
-        // 地板 (半透明)
-        const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(60, 60),
-            new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 })
-        );
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
-        scene.add(new THREE.GridHelper(40, 20, 0xCBD5E1, 0xe2e8f0));
-
-        // 建立繩索節點 (使用圓柱體模擬繩索立體感)
-        for (let i = 0; i < 30; i++) {
-            const part = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.4, 0.4, 0.6, 12),
-                new THREE.MeshStandardMaterial({ color: 0xffffff, map: ropeTex })
-            );
-            part.castShadow = true;
-            scene.add(part);
-            ropeParts.push(part);
-        }
-
-        // 鞋眼孔
-        eyelet = new THREE.Group();
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.2, 16, 100), new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.8 }));
-        ring.rotation.x = Math.PI/2;
-        eyelet.add(ring);
-        eyelet.position.set(0, 0.1, -6);
-        scene.add(eyelet);
-
-        // 視角控制
-        container.addEventListener('pointerdown', e => { isDragging = true; lastMouseX = e.clientX; });
-        window.addEventListener('pointermove', e => {
-            if (isDragging) {
-                rotationAngle -= (e.clientX - lastMouseX) * 0.01;
-                updateCamera();
-                lastMouseX = e.clientX;
-            }
-        });
-        window.addEventListener('pointerup', () => isDragging = false);
-    }
-
-    function updateCamera() {
-        camera.position.x = Math.cos(rotationAngle) * 20;
-        camera.position.z = Math.sin(rotationAngle) * 20;
-        camera.position.y = 12;
-        camera.lookAt(0, 0, 0);
-    }
-
-    function setDir(x, z) {
-        let n = new THREE.Vector3(x, 0, -z);
-        if (n.dot(currentDir) === 0) nextDir.copy(n);
-    }
-
-    function animate() {
-        requestAnimationFrame(animate);
-
-        currentDir.lerp(nextDir, 0.15);
-        targetPos.addScaledVector(currentDir, 0.15);
-
-        let dist = targetPos.distanceTo(eyelet.position);
-        let yBase = 0.4;
-
-        // 穿孔動態：交替上下
-        if (dist < 2.5) {
-            let mode = (threadStep % 2 === 0) ? -1 : 1; // -1 是往下, 1 是往上
-            yBase = 0.4 + Math.sin((2.5 - dist) * (Math.PI / 2.5)) * 3.5 * mode;
+        const GameCanvas = forwardRef(({ onScoreChange, onGameOver }, ref) => {
+            const containerRef = useRef(null);
+            const rendererRef = useRef(null);
+            const ropeMeshRef = useRef(null);
+            const agletMeshRef = useRef(null); 
+            const targetEyeletRef = useRef(null);
+            const exitEyeletRef = useRef(null);
+            const pathHistoryRef = useRef([]);
+            const sceneRef = useRef(new THREE.Scene());
             
-            if (dist < 0.3) {
-                threadStep++;
-                score++;
-                document.getElementById('score-val').innerText = score;
-                eyelet.position.set((Math.random()-0.5)*16, 0.1, (Math.random()-0.5)*16);
-            }
-        }
+            const stateRef = useRef({
+                status: 'PLAYER',
+                targetPos: new THREE.Vector3(0, GAME_CONFIG.UPPER_Y, 0),
+                currentDir: new THREE.Vector3(0, 0, -1),
+                nextDir: null,
+                score: 0,
+                activeSegments: GAME_CONFIG.INITIAL_SEGMENTS,
+                exitPos: new THREE.Vector3(),
+                threadMode: 'down' // 'down' or 'up'
+            });
 
-        // 繩索跟隨
-        for (let i = ropeParts.length - 1; i >= 0; i--) {
-            if (i === 0) {
-                ropeParts[i].position.set(targetPos.x, yBase, targetPos.z);
-                ropeParts[i].lookAt(ropeParts[i].position.clone().add(currentDir));
-                ropeParts[i].rotateX(Math.PI/2);
-            } else {
-                ropeParts[i].position.lerp(ropeParts[i-1].position, 0.3);
-                ropeParts[i].lookAt(ropeParts[i-1].position);
-                ropeParts[i].rotateX(Math.PI/2);
-            }
-        }
+            const create3DEyelet = (isTarget) => {
+                const group = new THREE.Group();
+                const metalMat = new THREE.MeshStandardMaterial({ 
+                    color: isTarget ? COLORS.GOLD : COLORS.CHROME, 
+                    metalness: 1.0, 
+                    roughness: 0.1 
+                });
+                const torus = new THREE.Mesh(new THREE.TorusGeometry(GAME_CONFIG.EYELET_RADIUS - 0.1, 0.15, 16, 32), metalMat);
+                torus.rotation.x = Math.PI / 2;
+                torus.position.y = 0.2;
+                const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(GAME_CONFIG.EYELET_RADIUS, GAME_CONFIG.EYELET_RADIUS, 0.4, 32), metalMat);
+                cylinder.position.y = 0.1;
+                const hole = new THREE.Mesh(new THREE.CircleGeometry(GAME_CONFIG.EYELET_RADIUS - 0.2, 32), new THREE.MeshBasicMaterial({ color: COLORS.HOLE_INNER }));
+                hole.rotation.x = -Math.PI / 2;
+                hole.position.y = 0.05;
+                group.add(torus, cylinder, hole);
+                return group;
+            };
 
-        if (targetPos.length() > 30) targetPos.set(0, 0.4, 0);
-        renderer.render(scene, camera);
-    }
+            const spawnTarget = () => {
+                const grid = GAME_CONFIG.GRID_SIZE;
+                const range = GAME_CONFIG.BOUNDS - 4;
+                const x = Math.round((Math.random() * range * 2 - range) / grid) * grid;
+                const z = Math.round((Math.random() * range * 2 - range) / grid) * grid;
+                targetEyeletRef.current.position.set(x, 0, z);
+                targetEyeletRef.current.visible = true;
+            };
 
-    window.onload = () => { init(); animate(); };
-</script>
+            const resetGame = () => {
+                const s = stateRef.current;
+                s.status = 'PLAYER';
+                s.score = 0;
+                s.threadMode = 'down';
+                s.activeSegments = GAME_CONFIG.INITIAL_SEGMENTS;
+                s.targetPos.set(0, GAME_CONFIG.UPPER_Y, 0);
+                s.currentDir.set(0, 0, -1);
+                pathHistoryRef.current = [];
+                for(let i=0; i<30; i++) pathHistoryRef.current.push(new THREE.Vector3(0, GAME_CONFIG.UPPER_Y, i*0.1));
+                spawnTarget();
+                onScoreChange(0);
+            };
+
+            useImperativeHandle(ref, () => ({
+                setDirection: (x, z) => {
+                    const s = stateRef.current;
+                    const newDir = new THREE.Vector3(x, 0, -z).normalize();
+                    if (newDir.dot(s.currentDir) > -0.8) s.nextDir = newDir;
+                },
+                reset: resetGame
+            }));
+
+            useEffect(() => {
+                const container = containerRef.current;
+                const scene = sceneRef.current;
+                scene.background = new THREE.Color(COLORS.DARK_BG);
+
+                const aspect = container.clientWidth / container.clientHeight;
+                const d = 15;
+                const camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 1000);
+                camera.position.set(20, 20, 20); 
+                camera.lookAt(0, 0, 0);
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(container.clientWidth, container.clientHeight);
+                renderer.shadowMap.enabled = true;
+                container.appendChild(renderer.domElement);
+
+                scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+                const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+                sun.position.set(10, 20, 10);
+                scene.add(sun);
+
+                const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: COLORS.GROUND }));
+                ground.rotation.x = -Math.PI / 2;
+                scene.add(ground);
+                scene.add(new THREE.GridHelper(100, 50, COLORS.GRID, COLORS.GRID));
+
+                const loader = new THREE.TextureLoader();
+                const ropeTex = loader.load(ROPE_TEXTURE_URL);
+                ropeTex.wrapS = ropeTex.wrapT = THREE.RepeatWrapping;
+
+                const ropeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: ropeTex });
+                ropeMeshRef.current = new THREE.Mesh(new THREE.BufferGeometry(), ropeMat);
+                scene.add(ropeMeshRef.current);
+
+                targetEyeletRef.current = create3DEyelet(true);
+                scene.add(targetEyeletRef.current);
+
+                resetGame();
+
+                const update = () => {
+                    const s = stateRef.current;
+                    if (s.status === 'OVER') return;
+
+                    if (s.nextDir) { s.currentDir.lerp(s.nextDir, 0.2); s.nextDir = null; }
+                    
+                    const head = s.targetPos;
+                    head.add(s.currentDir.clone().multiplyScalar(GAME_CONFIG.MOVE_SPEED));
+
+                    // 穿孔動態邏輯：由上往下 / 由下往上交替
+                    const dist = head.distanceTo(targetEyeletRef.current.position);
+                    if (dist < 2.0) {
+                        const effect = Math.sin((2.0 - dist) * (Math.PI / 2.0)) * 3.0;
+                        head.y = (s.threadMode === 'down') ? 0.6 - effect : -2.5 + effect;
+                        
+                        if (dist < 0.3) {
+                            s.score++;
+                            onScoreChange(s.score);
+                            s.threadMode = s.threadMode === 'down' ? 'up' : 'down';
+                            spawnTarget();
+                        }
+                    } else {
+                        head.y = (s.threadMode === 'down') ? 0.6 : -2.5;
+                    }
+
+                    pathHistoryRef.current.unshift(head.clone());
+                    if (pathHistoryRef.current.length > GAME_CONFIG.MAX_SEGMENTS) pathHistoryRef.current.pop();
+
+                    // 更新 Tube 幾何體
+                    if (pathHistoryRef.current.length > 2) {
+                        const curve = new THREE.CatmullRomCurve3(pathHistoryRef.current);
+                        const newGeo = new THREE.TubeGeometry(curve, pathHistoryRef.current.length, GAME_CONFIG.ROPE_RADIUS, 8, false);
+                        
+                        // 織帶扁平化處理
+                        const pos = newGeo.attributes.position;
+                        for(let i=0; i<pos.count; i++) pos.setY(i, pos.getY(i) * 0.3);
+                        
+                        if (ropeMeshRef.current.geometry) ropeMeshRef.current.geometry.dispose();
+                        ropeMeshRef.current.geometry = newGeo;
+                    }
+
+                    if (Math.abs(head.x) > 30 || Math.abs(head.z) > 30) {
+                        s.status = 'OVER';
+                        onGameOver();
+                    }
+                };
+
+                const animate = () => {
+                    update();
+                    renderer.render(scene, camera);
+                    rendererRef.current = requestAnimationFrame(animate);
+                };
+                animate();
+
+                return () => {
+                    cancelAnimationFrame(rendererRef.current);
+                    renderer.dispose();
+                };
+            }, []);
+
+            return <div ref={containerRef} className="w-full h-full" />;
+        });
+
+        const Controls = ({ onDirection }) => (
+            <div className="h-[200px] bg-[#d1d9e6] grid grid-cols-3 grid-rows-2 items-center justify-items-center p-4">
+                <button onPointerDown={() => onDirection(0, 1)} className="w-14 h-14 bg-[#D31A24] rounded-full text-white shadow-[0_4px_0_#900] col-start-2">▲</button>
+                <button onPointerDown={() => onDirection(-1, 0)} className="w-14 h-14 bg-[#D31A24] rounded-full text-white shadow-[0_4px_0_#900] col-start-1 row-start-2">◀</button>
+                <button onPointerDown={() => onDirection(0, -1)} className="w-14 h-14 bg-[#D31A24] rounded-full text-white shadow-[0_4px_0_#900] col-start-2 row-start-2">▼</button>
+                <button onPointerDown={() => onDirection(1, 0)} className="w-14 h-14 bg-[#D31A24] rounded-full text-white shadow-[0_4px_0_#900] col-start-3 row-start-2">▶</button>
+            </div>
+        );
+
+        const App = () => {
+            const [score, setScore] = useState(0);
+            const [isGameOver, setIsGameOver] = useState(false);
+            const gameRef = useRef();
+
+            return (
+                <div className="flex flex-col h-screen">
+                    <header className="h-14 flex items-center justify-between px-6 bg-white border-b">
+                        <span className="font-black text-xl">PAIHO <span className="text-red-600">SNAKE</span></span>
+                        <div className="font-bold">SCORE: {score}</div>
+                    </header>
+                    <div className="flex-1 relative">
+                        <GameCanvas ref={gameRef} onScoreChange={setScore} onGameOver={() => setIsGameOver(true)} />
+                        {isGameOver && (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
+                                <div className="bg-white p-8 rounded-3xl text-center">
+                                    <h2 className="text-2xl font-bold mb-4">Game Over</h2>
+                                    <button onClick={() => { setIsGameOver(false); gameRef.current.reset(); }} className="px-6 py-2 bg-red-600 text-white rounded-full">Restart</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <Controls onDirection={(x, z) => gameRef.current.setDirection(x, z)} />
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
 </body>
 </html>
