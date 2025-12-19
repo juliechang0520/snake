@@ -2,206 +2,141 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PAIHO Elite - Arcade Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PAIHO 3D Elite Adventure</title>
     <style>
-        :root {
-            --paiho-red: #e60012;
-            --machine-metal: #d1d9e6;
-            --btn-shadow: #b8bec9;
-            --btn-light: #ffffff;
+        body { margin: 0; background: #111; overflow: hidden; font-family: sans-serif; }
+        #ui { position: absolute; top: 20px; width: 100%; text-align: center; color: white; pointer-events: none; }
+        .score-board { font-size: 24px; font-weight: 900; letter-spacing: 2px; }
+        .score-board span { color: #e60012; }
+        
+        /* 模擬機台按鈕 */
+        #controls { 
+            position: absolute; bottom: 30px; width: 100%; 
+            display: grid; grid-template-columns: repeat(3, 80px); 
+            justify-content: center; gap: 15px;
         }
-        body, html {
-            height: 100%; margin: 0; padding: 0;
-            background: #222; color: #333; overflow: hidden;
-            display: flex; flex-direction: column; font-family: 'Segoe UI', sans-serif;
+        .btn {
+            width: 80px; height: 80px; background: #d1d9e6; border-radius: 50%;
+            border: none; box-shadow: 0 6px 0 #888, 0 10px 20px rgba(0,0,0,0.5);
+            font-size: 24px; cursor: pointer; transition: 0.1s;
         }
-
-        /* 頂部 (10%) */
-        .header {
-            height: 10%; display: flex; align-items: center; justify-content: center;
-            background: linear-gradient(to bottom, #333, #111); color: white;
-            border-bottom: 2px solid var(--paiho-red);
-        }
-        .logo { font-size: 18px; font-weight: 900; letter-spacing: 4px; }
-        .logo span { color: var(--paiho-red); }
-
-        /* 遊戲區 (65%) */
-        #game-box {
-            height: 65%; width: 100%; display: flex; align-items: center; justify-content: center;
-            padding: 10px; box-sizing: border-box; background: #333;
-        }
-        canvas {
-            background: #2c3e50; border-radius: 20px;
-            box-shadow: inset 10px 10px 20px #1a252f, inset -10px -10px 20px #3e5771;
-            max-width: 100%; max-height: 100%;
-        }
-
-        /* 3D 擬真機台控制區 (25%) */
-        .controls {
-            height: 25%; width: 100%; background: var(--machine-metal);
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-            padding: 10px; box-sizing: border-box;
-            border-top: 5px solid #888;
-            box-shadow: inset 0 10px 20px rgba(0,0,0,0.3);
-        }
-        .btn-socket {
-            display: flex; align-items: center; justify-content: center;
-            background: #c0c8d4; border-radius: 50%;
-            box-shadow: inset 4px 4px 8px #99a1ad, inset -4px -4px 8px #e7effb;
-            width: 70px; height: 70px; margin: auto;
-        }
-        .joy-btn {
-            width: 55px; height: 55px; background: var(--paiho-red);
-            border: none; border-radius: 50%; color: white; font-size: 20px;
-            box-shadow: 0 6px 0 #900, 0 8px 15px rgba(0,0,0,0.4);
-            display: flex; align-items: center; justify-content: center;
-            transition: 0.1s; cursor: pointer; -webkit-tap-highlight-color: transparent;
-        }
-        .joy-btn:active {
-            box-shadow: 0 2px 0 #900, 0 4px 8px rgba(0,0,0,0.4);
-            transform: translateY(4px);
-        }
-        .up { grid-column: 2; grid-row: 1; }
-        .left { grid-column: 1; grid-row: 2; }
-        .down { grid-column: 2; grid-row: 2; }
-        .right { grid-column: 3; grid-row: 2; }
+        .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #888; }
+        .up { grid-column: 2; } .left { grid-column: 1; grid-row: 2; }
+        .down { grid-column: 2; grid-row: 2; } .right { grid-column: 3; grid-row: 2; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-    <div class="header">
-        <div class="logo">PAIHO <span>ELITE</span> | SCORE: <b id="score">0</b></div>
+    <div id="ui">
+        <div class="score-board">PAIHO <span>3D ELITE</span></div>
+        <div id="score">SCORE: 0</div>
     </div>
 
-    <div id="game-box">
-        <canvas id="gameCanvas"></canvas>
-    </div>
-
-    <div class="controls">
-        <div class="btn-socket up"><button class="joy-btn" onclick="ctrl(0,-1)">▲</button></div>
-        <div class="btn-socket left"><button class="joy-btn" onclick="ctrl(-1,0)">◀</button></div>
-        <div class="btn-socket down"><button class="joy-btn" onclick="ctrl(0,1)">▼</button></div>
-        <div class="btn-socket right"><button class="joy-btn" onclick="ctrl(1,0)">▶</button></div>
+    <div id="controls">
+        <button class="btn up" onclick="changeDir(0,1)">▲</button>
+        <button class="btn left" onclick="changeDir(-1,0)">◀</button>
+        <button class="btn down" onclick="changeDir(0,-1)">▼</button>
+        <button class="btn right" onclick="changeDir(1,0)">▶</button>
     </div>
 
 <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const size = 600; 
-    canvas.width = size; canvas.height = size;
-    const grid = 12, ts = size / grid;
+    let scene, camera, renderer, snake = [], food, grid = 12, size = 2;
+    let dx = 0, dz = 1;
+    let score = 0;
 
-    let snake = [{x: 6, y: 8}, {x: 6, y: 9}, {x: 6, y: 10}];
-    let eyelet = {x: 6, y: 3};
-    let dx = 0, dy = -1, score = 0, steps = 0;
-    let particles = [];
-    let lastTime = 0;
+    init();
+    animate();
 
-    function ctrl(x, y) {
-        if ((x === -dx && x !== 0) || (y === -dy && y !== 0)) return;
-        dx = x; dy = y;
-    }
+    function init() {
+        // 1. 場景與相機
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+        
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 20, 15); // 斜上方俯瞰視角
+        camera.lookAt(0, 0, 0);
 
-    class Particle {
-        constructor(x, y, color, type) {
-            this.x = x; this.y = y;
-            this.color = color;
-            const angle = Math.random() * Math.PI * 2;
-            const speed = Math.random() * 10 + 2;
-            this.vx = Math.cos(angle) * speed;
-            this.vy = Math.sin(angle) * speed;
-            this.life = 1.0;
-            this.gravity = 0.2;
-            this.type = type;
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // 2. 光照 (這就是質感的來源)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.position.set(5, 15, 5);
+        pointLight.castShadow = true;
+        scene.add(pointLight);
+
+        // 3. 地板 (模擬運動鞋網布)
+        const floorGeo = new THREE.PlaneGeometry(30, 30);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.8 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // 4. 初始化蛇 (百和紅織帶)
+        for(let i=0; i<3; i++) {
+            addSnakePart(0, 0, -i);
         }
-        update() {
-            this.x += this.vx; this.y += this.vy;
-            if (this.type === 'out') this.vy += this.gravity;
-            this.life -= 0.03;
+
+        // 5. 鞋眼孔 (3D 圓環)
+        const torusGeo = new THREE.TorusGeometry(0.8, 0.2, 16, 100);
+        const torusMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.8, roughness: 0.2 });
+        food = new THREE.Mesh(torusGeo, torusMat);
+        food.rotation.x = Math.PI / 2;
+        food.position.set(4, 0.2, 4);
+        scene.add(food);
+    }
+
+    function addSnakePart(x, y, z) {
+        const geo = new THREE.BoxGeometry(1.8, 0.6, 1.8);
+        const mat = new THREE.MeshStandardMaterial({ color: 0xe60012, roughness: 0.5 });
+        const part = new THREE.Mesh(geo, mat);
+        part.position.set(x * size, 0.5, z * size);
+        part.castShadow = true;
+        scene.add(part);
+        snake.unshift(part);
+    }
+
+    function changeDir(x, z) {
+        dx = x; dz = z;
+    }
+
+    function updateGame() {
+        if (dx === 0 && dz === 0) return;
+
+        const head = snake[0].position.clone();
+        head.x += dx * size;
+        head.z -= dz * size;
+
+        // 碰撞檢測 (簡化版)
+        if (head.distanceTo(food.position) < 1.5) {
+            score++;
+            document.getElementById('score').innerText = "SCORE: " + score;
+            food.position.set((Math.random()-0.5)*20, 0.2, (Math.random()-0.5)*20);
+            // 增長邏輯...
         }
-        draw() {
-            ctx.globalAlpha = this.life;
-            ctx.fillStyle = this.color;
-            ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, 7); ctx.fill();
+
+        // 移動身體
+        for (let i = snake.length - 1; i > 0; i--) {
+            snake[i].position.copy(snake[i-1].position);
         }
+        snake[0].position.copy(head);
     }
 
-    function update() {
-        if (dx === 0 && dy === 0) return;
-        const head = {x: snake[0].x + dx, y: snake[0].y + dy};
-
-        if (head.x === eyelet.x && head.y === eyelet.y) {
-            score++; steps++;
-            document.getElementById("score").innerText = score;
-            const type = steps % 2 === 1 ? 'in' : 'out';
-            for(let i=0; i<30; i++) particles.push(new Particle(eyelet.x*ts+ts/2, eyelet.y*ts+ts/2, '#ff0000', type));
-            eyelet = {x: Math.floor(Math.random()*grid), y: Math.floor(Math.random()*grid)};
-        } else { snake.pop(); }
-        snake.unshift(head);
-
-        particles = particles.filter(p => p.life > 0);
-        particles.forEach(p => p.update());
+    let frame = 0;
+    function animate() {
+        requestAnimationFrame(animate);
+        frame++;
+        if (frame % 10 === 0) updateGame();
+        renderer.render(scene, camera);
     }
-
-    function draw() {
-        ctx.clearRect(0, 0, size, size);
-        ctx.fillStyle = "#2c3e50"; ctx.fillRect(0,0,size,size);
-
-        // 鞋眼孔 3D 陰影呈現
-        const ex = eyelet.x * ts + ts/2, ey = eyelet.y * ts + ts/2;
-        ctx.save();
-        // 外部環
-        let g1 = ctx.createRadialGradient(ex, ey, ts/3, ex, ey, ts/2);
-        g1.addColorStop(0, "#000"); g1.addColorStop(1, "#555");
-        ctx.fillStyle = g1; ctx.beginPath(); ctx.arc(ex, ey, ts/2, 0, 7); ctx.fill();
-        // 內部孔洞深層陰影
-        let g2 = ctx.createRadialGradient(ex, ey, 0, ex, ey, ts/3);
-        g2.addColorStop(0, "#000"); g2.addColorStop(1, "#222");
-        ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(ex, ey, ts/3, 0, 7); ctx.fill();
-        ctx.restore();
-
-        // 織帶繪製 (紋路不跑出範圍)
-        snake.forEach((p, i) => {
-            const isHead = i === 0;
-            ctx.save();
-            ctx.translate(p.x * ts + ts/2, p.y * ts + ts/2);
-            if (isHead && score > 0) {
-                const s = (steps % 2 === 1) ? 0.5 : 1.5;
-                ctx.scale(s, s);
-            }
-            
-            // 1. 先畫矩形範圍並 Clip
-            ctx.beginPath();
-            ctx.roundRect(-ts/2+2, -ts/2+2, ts-4, ts-4, 5);
-            ctx.clip(); 
-
-            // 2. 在範圍內填充底色
-            ctx.fillStyle = "#e60012";
-            ctx.fillRect(-ts/2, -ts/2, ts, ts);
-
-            // 3. 在範圍內畫紋路 (絕對不會跑出去)
-            ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 3;
-            for(let j=-ts; j<ts; j+=6) {
-                ctx.beginPath(); ctx.moveTo(j, -ts/2); ctx.lineTo(j+ts, ts/2); ctx.stroke();
-            }
-            ctx.restore();
-        });
-
-        particles.forEach(p => p.draw());
-        ctx.globalAlpha = 1;
-    }
-
-    function loop(t) {
-        requestAnimationFrame(loop);
-        if (t - lastTime < 180) return;
-        lastTime = t;
-        const h = snake[0];
-        if (h.x<0 || h.x>=grid || h.y<0 || h.y>=grid || snake.slice(1).some(p=>p.x===h.x && p.y===h.y)) {
-            alert("遊戲結束！分數: " + score); location.reload();
-        } else { update(); draw(); }
-    }
-    requestAnimationFrame(loop);
 </script>
 </body>
 </html>
