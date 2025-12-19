@@ -1,132 +1,171 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>PAIHO 3D Snake - Pro</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 質感 2D 貪食蛇</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #f1f5f9; font-family: sans-serif; touch-action: none; user-select: none; }
-        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; z-index: 10; }
-        .btn { pointer-events: auto; width: 75px; height: 75px; background: #D31A24; color: white; border-radius: 50%; 
-               display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; 
-               box-shadow: 0 6px 0 #900; transition: 0.1s; -webkit-tap-highlight-color: transparent; }
-        .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #900; }
-        /* 提示字眼 */
-        .kbm-hint { position: absolute; bottom: 10px; right: 10px; font-size: 12px; color: #94a3b8; pointer-events: none; }
+        body { background-color: #1a1a1a; }
+        canvas {
+            background: radial-gradient(circle, #2c2c2c 0%, #000000 100%);
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            border-radius: 12px;
+        }
+        .btn-control {
+            @apply w-16 h-16 bg-gray-700 text-white rounded-full flex items-center justify-center active:bg-blue-500 shadow-lg transition-all;
+            user-select: none;
+        }
     </style>
 </head>
-<body>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
 
-    <div id="canvas-container"></div>
+    <div class="text-white text-3xl font-bold mb-4 tracking-widest">
+        SCORE: <span id="score">0</span>
+    </div>
 
-    <div id="ui-layer">
-        <div class="h-20 bg-white/95 border-b flex items-center justify-between px-8 pointer-events-auto shadow-md">
-            <span class="font-black text-2xl italic tracking-tighter">PAIHO <span class="text-red-600">LACE</span></span>
-            <div id="score-text" class="bg-slate-900 text-green-400 px-5 py-2 rounded font-mono text-2xl shadow-inner">SCORE: 000</div>
-        </div>
+    <canvas id="snakeGame" width="400" height="400"></canvas>
 
-        <div class="flex-1"></div>
-
-        <div class="h-80 bg-slate-100/95 border-t grid grid-cols-3 items-center justify-items-center p-6 pointer-events-auto">
-            <div class="btn col-start-2" onmousedown="changeDir(0, 1)" ontouchstart="changeDir(0, 1)">▲</div>
-            <div class="btn col-start-1 row-start-2" onmousedown="changeDir(-1, 0)" ontouchstart="changeDir(-1, 0)">◀</div>
-            <div class="btn col-start-2 row-start-2" onmousedown="changeDir(0, -1)" ontouchstart="changeDir(0, -1)">▼</div>
-            <div class="btn col-start-3 row-start-2" onmousedown="changeDir(1, 0)" ontouchstart="changeDir(1, 0)">▶</div>
-            <div class="kbm-hint">Supports WASD / Arrow Keys</div>
-        </div>
+    <div class="mt-8 grid grid-cols-3 gap-2">
+        <div></div>
+        <button class="btn-control" onmousedown="changeDir('UP')">▲</button>
+        <div></div>
+        <button class="btn-control" onmousedown="changeDir('LEFT')">◀</button>
+        <button class="btn-control" onmousedown="changeDir('DOWN')">▼</button>
+        <button class="btn-control" onmousedown="changeDir('RIGHT')">▶</button>
     </div>
 
     <script>
-        let scene, camera, renderer, rope, target, exit;
+        const canvas = document.getElementById("snakeGame");
+        const ctx = canvas.getContext("2d");
+        const scoreElement = document.getElementById("score");
+
+        const box = 20; // 格點大小
         let score = 0;
-        let game = {
-            status: 'PLAYER',
-            pos: new THREE.Vector3(0, 0.6, 0),
-            dir: new THREE.Vector3(0, 0, -1),
-            nextDir: null,
-            history: [],
-            len: 80,
-            targetPos: new THREE.Vector3(),
-            exitPos: new THREE.Vector3()
+        let gameSpeed = 100;
+
+        // 初始化蛇與食物
+        let snake = [{ x: 9 * box, y: 10 * box }];
+        let food = {
+            x: Math.floor(Math.random() * 19 + 1) * box,
+            y: Math.floor(Math.random() * 19 + 1) * box
         };
 
-        const C = { RED: 0xD31A24, GOLD: 0xD4AF37, METAL: 0x94A3B8, HOLE: 0x0F172A };
+        let d = "RIGHT";
 
-        function init() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xf1f5f9);
-
-            const aspect = window.innerWidth / window.innerHeight;
-            camera = new THREE.OrthographicCamera(-40 * aspect, 40 * aspect, 40, -40, 0.1, 1000);
-            camera.position.set(50, 50, 50);
-            camera.lookAt(0, 0, 0);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-            const sun = new THREE.DirectionalLight(0xffffff, 0.6);
-            sun.position.set(20, 100, 20);
-            scene.add(sun);
-            
-            scene.add(new THREE.GridHelper(200, 40, 0xCBD5E1, 0xE2E8F0));
-
-            const mat = new THREE.MeshStandardMaterial({ color: C.RED, roughness: 0.6 });
-            rope = new THREE.Mesh(new THREE.BufferGeometry(), mat);
-            scene.add(rope);
-
-            target = createHole(true);
-            exit = createHole(false);
-            scene.add(target, exit);
-
-            reset();
-            animate();
+        // 核心修正：changeDir 函數
+        function changeDir(newDirection) {
+            if (newDirection == "LEFT" && d != "RIGHT") d = "LEFT";
+            else if (newDirection == "UP" && d != "DOWN") d = "UP";
+            else if (newDirection == "RIGHT" && d != "LEFT") d = "RIGHT";
+            else if (newDirection == "DOWN" && d != "UP") d = "DOWN";
         }
 
-        function createHole(isGold) {
-            const g = new THREE.Group();
-            const m = new THREE.MeshStandardMaterial({ color: isGold ? C.GOLD : C.METAL, metalness: 0.8, roughness: 0.2 });
-            const torus = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.2, 16, 32), m);
-            torus.rotation.x = Math.PI/2;
-            const dot = new THREE.Mesh(new THREE.CircleGeometry(1.4, 32), new THREE.MeshBasicMaterial({ color: C.HOLE }));
-            dot.rotation.x = -Math.PI/2; 
-            dot.position.y = 0.05;
-            g.add(torus, dot);
-            return g;
-        }
-
-        function spawn(obj, isExit) {
-            const range = 6;
-            const x = (Math.floor(Math.random() * 12) - 6) * range;
-            const z = (Math.floor(Math.random() * 12) - 6) * range;
-            obj.position.set(x, 0, z);
-            obj.visible = true;
-            if(isExit) game.exitPos.set(x, -5, z); else game.targetPos.set(x, 0.6, z);
-        }
-
-        // --- 核心方向變換 ---
-        window.changeDir = (x, z) => {
-            const n = new THREE.Vector3(x, 0, -z).normalize();
-            if(game.dir && n.dot(game.dir) > -0.5) game.nextDir = n;
-        };
-
-        // --- 新增鍵盤事件監聽 ---
-        window.addEventListener('keydown', (e) => {
-            switch(e.key) {
-                case 'ArrowUp':    case 'w': case 'W': changeDir(0, 1);  e.preventDefault(); break;
-                case 'ArrowDown':  case 's': case 'S': changeDir(0, -1); e.preventDefault(); break;
-                case 'ArrowLeft':  case 'a': case 'A': changeDir(-1, 0); e.preventDefault(); break;
-                case 'ArrowRight': case 'd': case 'D': changeDir(1, 0);  e.preventDefault(); break;
-            }
+        // 監聽鍵盤
+        document.addEventListener("keydown", (e) => {
+            if (e.keyCode == 37) changeDir("LEFT");
+            else if (e.keyCode == 38) changeDir("UP");
+            else if (e.keyCode == 39) changeDir("RIGHT");
+            else if (e.keyCode == 40) changeDir("DOWN");
         });
 
-        function reset() {
-            score = 0;
-            document.getElementById('score-text').innerText = "SCORE: 000";
-            game.status = 'PLAYER'; 
-            game.len
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. 繪製蛇
+            for (let i = 0; i < snake.length; i++) {
+                const isHead = (i === 0);
+                
+                // 設定 3D 陰影
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+                ctx.shadowOffsetX = 4;
+                ctx.shadowOffsetY = 4;
+
+                // 建立徑向漸層營造 3D 球體感
+                const gradient = ctx.createRadialGradient(
+                    snake[i].x + 7, snake[i].y + 7, 2, 
+                    snake[i].x + 10, snake[i].y + 10, 10
+                );
+
+                if (isHead) {
+                    gradient.addColorStop(0, "#ffeb3b"); // 頭部亮色
+                    gradient.addColorStop(1, "#f44336"); // 頭部深色
+                } else {
+                    gradient.addColorStop(0, "#a7ffeb"); // 身體亮色
+                    gradient.addColorStop(1, "#00bfa5"); // 身體深色
+                }
+
+                ctx.fillStyle = gradient;
+                
+                // 畫出圓潤的蛇身
+                ctx.beginPath();
+                ctx.roundRect(snake[i].x, snake[i].y, box - 2, box - 2, 8);
+                ctx.fill();
+                ctx.closePath();
+            }
+
+            // 2. 繪製食物 (發光的 3D 球體)
+            ctx.shadowColor = "#ffeb3b";
+            ctx.shadowBlur = 15;
+            const foodGrad = ctx.createRadialGradient(
+                food.x + 7, food.y + 7, 2, 
+                food.x + 10, food.y + 10, 10
+            );
+            foodGrad.addColorStop(0, "#ffffff");
+            foodGrad.addColorStop(1, "#ff9800");
+            ctx.fillStyle = foodGrad;
+            
+            ctx.beginPath();
+            ctx.arc(food.x + box/2, food.y + box/2, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 重置陰影設定
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+
+            // 3. 移動邏輯
+            let snakeX = snake[0].x;
+            let snakeY = snake[0].y;
+
+            if (d == "LEFT") snakeX -= box;
+            if (d == "UP") snakeY -= box;
+            if (d == "RIGHT") snakeX += box;
+            if (d == "DOWN") snakeY += box;
+
+            // 檢查是否吃到食物
+            if (snakeX == food.x && snakeY == food.y) {
+                score++;
+                scoreElement.innerText = score;
+                food = {
+                    x: Math.floor(Math.random() * 19 + 1) * box,
+                    y: Math.floor(Math.random() * 19 + 1) * box
+                };
+            } else {
+                snake.pop();
+            }
+
+            let newHead = { x: snakeX, y: snakeY };
+
+            // 4. 碰撞偵測 (撞牆或撞到自己)
+            if (snakeX < 0 || snakeX >= canvas.width || snakeY < 0 || snakeY >= canvas.height || collision(newHead, snake)) {
+                clearInterval(game);
+                alert("Game Over! 最終分數: " + score);
+                location.reload();
+            }
+
+            snake.unshift(newHead);
+        }
+
+        function collision(head, array) {
+            for (let i = 0; i < array.length; i++) {
+                if (head.x == array[i].x && head.y == array[i].y) return true;
+            }
+            return false;
+        }
+
+        let game = setInterval(draw, gameSpeed);
+    </script>
+</body>
+</html>
