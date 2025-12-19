@@ -3,282 +3,202 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Paiho Shoelace Adventure</title>
+    <title>Paiho Elite Shoelace Adventure</title>
     <style>
         :root {
             --paiho-red: #e60012;
-            --paiho-black: #1a1a1a;
-            --shoe-fabric: #34495e; /* 模擬鞋面深色布料 */
-            --btn-bg: #2c3e50;
+            --shoe-fabric: #243441;
+            --btn-base: #2c3e50;
+            --btn-shadow: #16212b;
+            --btn-light: #425d78;
         }
-
         body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-between;
-            height: 100vh;
-            margin: 0;
-            background: radial-gradient(circle, #2c3e50 0%, #000000 100%);
-            font-family: "Segoe UI", Roboto, sans-serif;
-            color: white;
-            overflow: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+            height: 100vh; margin: 0; background: #0f171e; color: white; overflow: hidden; font-family: sans-serif;
         }
-
-        .header {
-            padding: 15px 0;
-            text-align: center;
-            width: 100%;
-        }
-
-        .brand-logo {
-            font-size: 24px;
-            font-weight: 900;
-            letter-spacing: 2px;
-            color: var(--paiho-red);
-            text-shadow: 0 0 15px rgba(230,0,18,0.5);
-        }
-
-        .status-panel {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-top: 8px;
-        }
-
-        .tag {
-            background: rgba(255,255,255,0.1);
-            padding: 5px 12px;
-            border-radius: 8px;
-            font-size: 13px;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        /* 遊戲區域 */
-        #game-box {
-            flex-grow: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-        }
-
-        canvas {
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.8), inset 0 0 100px rgba(0,0,0,0.2);
-            background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAS0lEQVQ4T2P8////fwYKAOOo4VCG8f///0diI5uB8f///0mOZAaiGfD///9kRjID0Qz4//8/siOZwYhmoP8Z6H8GCgaDGQxmgL7OABM5S6HeDkYpAAAAAElFTkSuQmCC'); /* 模擬鞋面紋理 */
-            background-color: var(--shoe-fabric);
-        }
-
-        /* 3D 擬真控制區 */
-        .pad-container {
-            padding-bottom: 40px;
-            display: grid;
-            grid-template-columns: repeat(3, 70px);
-            gap: 15px;
-        }
-
+        .header { padding: 20px 0 10px; text-align: center; width: 100%; }
+        .logo { font-size: 24px; font-weight: 900; letter-spacing: 3px; }
+        .logo span { color: var(--paiho-red); }
+        .status-bar { display: flex; justify-content: center; gap: 12px; margin-top: 10px; }
+        .badge { background: rgba(255,255,255,0.05); padding: 6px 16px; border-radius: 12px; border: 1px solid rgba(230,0,18,0.3); font-size: 13px; }
+        #game-area { flex-grow: 1; display: flex; align-items: center; justify-content: center; width: 100%; }
+        canvas { border-radius: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); background-color: var(--shoe-fabric); }
+        
+        .controls { display: grid; grid-template-columns: repeat(3, 75px); gap: 18px; padding-bottom: 40px; }
         .joy-btn {
-            width: 70px;
-            height: 70px;
-            background: linear-gradient(145deg, #32465a, #2b3a4a);
-            border: none;
-            border-radius: 18px;
-            color: #bdc3c7;
-            font-size: 26px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 8px 8px 16px #1a252f, -8px -8px 16px #3e5771; /* Neumorphism */
-            transition: all 0.1s;
-            cursor: pointer;
+            width: 75px; height: 75px; background: var(--btn-base); border: none; border-radius: 22px;
+            color: #fff; font-size: 28px; cursor: pointer;
+            box-shadow: 8px 8px 16px var(--btn-shadow), -6px -6px 12px var(--btn-light);
+            display: flex; align-items: center; justify-content: center; transition: 0.1s;
             -webkit-tap-highlight-color: transparent;
         }
-
         .joy-btn:active {
-            box-shadow: inset 5px 5px 10px #1a252f, inset -5px -5px 10px #3e5771;
-            transform: scale(0.95);
-            color: var(--paiho-red);
+            box-shadow: inset 6px 6px 12px var(--btn-shadow), inset -4px -4px 10px var(--btn-light);
+            transform: scale(0.94); color: var(--paiho-red);
         }
-
-        .up { grid-column: 2; }
-        .left { grid-column: 1; }
-        .down { grid-column: 2; }
-        .right { grid-column: 3; }
+        .up { grid-column: 2; } .left { grid-column: 1; } .right { grid-column: 3; } .down { grid-column: 2; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <div class="brand-logo">PAIHO ADVENTURE</div>
-        <div class="status-panel">
-            <div class="tag">EYELETS: <span id="score">0</span></div>
-            <div class="tag">ACTION: <span id="action" style="color:var(--paiho-red)">START!</span></div>
+        <div class="logo">PAIHO <span>ELITE</span></div>
+        <div class="status-bar">
+            <div class="badge">得分: <span id="score">0</span></div>
+            <div class="badge">動作: <span id="mode" style="color:var(--paiho-red)">READY</span></div>
         </div>
     </div>
 
-    <div id="game-box">
+    <div id="game-area">
         <canvas id="gameCanvas"></canvas>
     </div>
 
-    <div class="pad-container">
-        <button class="joy-btn up" onclick="control(0, -1)">▲</button>
-        <button class="joy-btn left" onclick="control(-1, 0)">◀</button>
-        <button class="joy-btn down" onclick="control(0, 1)">▼</button>
-        <button class="joy-btn right" onclick="control(1, 0)">▶</button>
+    <div class="controls">
+        <button class="joy-btn up" onclick="handleInput(0,-1)">▲</button>
+        <button class="joy-btn left" onclick="handleInput(-1,0)">◀</button>
+        <button class="joy-btn right" onclick="handleInput(1,0)">▶</button>
+        <button class="joy-btn down" onclick="handleInput(0,1)">▼</button>
     </div>
 
 <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
     const scoreEl = document.getElementById("score");
-    const actionEl = document.getElementById("action");
+    const modeEl = document.getElementById("mode");
 
     const size = Math.min(window.innerWidth * 0.9, window.innerHeight * 0.45);
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = size; canvas.height = size;
+    const grid = 15, ts = canvas.width / grid;
 
-    const grid = 16;
-    const ts = canvas.width / grid;
+    let snake = [{x: 7, y: 11}, {x: 7, y: 12}, {x: 7, y: 13}];
+    let eyelet = {x: 7, y: 4};
+    let dx = 0, dy = -1, score = 0, count = 0;
+    let particles = [];
+    
+    // 載入素材
+    const laceImg = new Image();
+    laceImg.src = 'https://material.paiho.com/upload/BRD2147-J01F.jpg';
+    const eyeletImg = new Image();
+    eyeletImg.src = 'https://img.cloudimg.in/uploads/shops/7834/products/c0/c0d603bcac41967fd88028e08236541b.jpg';
 
-    // 初始位置調整，避免開局碰撞
-    let snake = [{x: 8, y: 12}, {x: 8, y: 13}, {x: 8, y: 14}];
-    let food = {x: 8, y: 5};
-    let dx = 0, dy = -1; // 預設向上移動
-    let score = 0, steps = 0;
-    let frameTime = 0;
-    const speed = 220;
+    function handleInput(x, y) {
+        if ((x === -dx && x !== 0) || (y === -dy && y !== 0)) return;
+        dx = x; dy = y;
+    }
 
-    // 動態變數
-    let currentScale = 1;
-    let currentAlpha = 1;
-    let isZIn = true; // 是否為穿入狀態
-
-    function loop(t) {
-        requestAnimationFrame(loop);
-        if (t - frameTime < speed) return;
-        frameTime = t;
-
-        if (checkHit()) {
-            alert("遊戲結束！穿孔次數: " + score);
-            reset();
-            return;
+    function createParticles(x, y, type) {
+        for(let i=0; i<25; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = type === 'in' ? 50 : 0;
+            particles.push({
+                x: x + Math.cos(angle) * dist,
+                y: y + Math.sin(angle) * dist,
+                vx: type === 'in' ? 0 : (Math.random() - 0.5) * 12,
+                vy: type === 'in' ? 0 : (Math.random() - 0.5) * 12,
+                targetX: x, targetY: y,
+                life: 1, type: type
+            });
         }
-        update();
-        draw();
     }
 
     function update() {
+        if (dx === 0 && dy === 0) return;
         const head = {x: snake[0].x + dx, y: snake[0].y + dy};
-        snake.unshift(head);
-
-        if (head.x === food.x && head.y === food.y) {
-            score++;
-            steps++;
+        
+        if (head.x === eyelet.x && head.y === eyelet.y) {
+            score++; count++;
             scoreEl.innerText = score;
-            
-            // 穿孔動態邏輯切換
-            isZIn = steps % 2 === 1;
-            if (isZIn) {
-                actionEl.innerText = "穿入孔洞 ↓";
-                currentScale = 0.5;
-                currentAlpha = 0.4;
-            } else {
-                actionEl.innerText = "穿出孔洞 ↑";
-                currentScale = 1.5;
-                currentAlpha = 1.0;
-            }
-            spawnFood();
+            const type = count % 2 === 1 ? 'in' : 'out';
+            modeEl.innerText = type === 'in' ? "鑽入 ↓" : "鑽出 ↑";
+            createParticles(eyelet.x * ts + ts/2, eyelet.y * ts + ts/2, type);
+            spawnEyelet();
         } else {
             snake.pop();
-            currentScale = 1;
-            currentAlpha = 1;
         }
+        snake.unshift(head);
+
+        particles.forEach((p, i) => {
+            if (p.type === 'in') {
+                p.x += (p.targetX - p.x) * 0.2;
+                p.y += (p.targetY - p.y) * 0.2;
+            } else {
+                p.x += p.vx; p.y += p.vy;
+            }
+            p.life -= 0.04;
+            if (p.life <= 0) particles.splice(i, 1);
+        });
     }
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 1. 畫鞋眼孔 (可以看透的孔洞)
-        const fx = food.x * ts + ts/2;
-        const fy = food.y * ts + ts/2;
-        
-        // 孔洞外框
-        ctx.strokeStyle = "#95a5a6";
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.arc(fx, fy, ts/2, 0, Math.PI*2);
-        ctx.stroke();
+        // 畫鞋眼孔 (使用圖片)
+        if (eyeletImg.complete) {
+            ctx.drawImage(eyeletImg, eyelet.x * ts, eyelet.y * ts, ts, ts);
+        } else {
+            ctx.fillStyle = "#000";
+            ctx.beginPath(); ctx.arc(eyelet.x*ts+ts/2, eyelet.y*ts+ts/2, ts/2.5, 0, Math.PI*2); ctx.fill();
+        }
 
-        // 孔洞內部 (陰影遮罩感)
-        ctx.fillStyle = "rgba(0,0,0,0.6)";
-        ctx.beginPath();
-        ctx.arc(fx, fy, ts/2.2, 0, Math.PI*2);
-        ctx.fill();
-
-        // 2. 畫鞋帶 (加強織紋紋理)
+        // 畫織帶 (Snake)
         snake.forEach((p, i) => {
-            const isHead = i === 0;
-            const s = isHead ? currentScale : 1;
-            const a = isHead ? currentAlpha : 1;
-            const offset = (ts * (1 - s)) / 2;
-
             ctx.save();
-            ctx.globalAlpha = a;
-            ctx.translate(p.x * ts + offset, p.y * ts + offset);
+            const isHead = i === 0;
+            let scale = 1, alpha = 1;
             
-            // 鞋帶主體
-            ctx.fillStyle = varColor(isHead);
-            ctx.beginPath();
-            ctx.roundRect(0, 0, ts * s, ts * s, 5);
-            ctx.fill();
-
-            // 繪製強化的織紋紋理 (斜線紋路)
-            ctx.strokeStyle = "rgba(255,255,255,0.3)";
-            ctx.lineWidth = 1.5;
-            for(let j=0; j<ts*s; j+=5) {
-                ctx.beginPath();
-                ctx.moveTo(j, 0);
-                ctx.lineTo(0, j);
-                ctx.stroke();
+            if (isHead && score > 0) {
+                scale = (count % 2 === 1) ? 0.5 : 1.5;
+                alpha = (count % 2 === 1) ? 0.4 : 1;
             }
             
+            ctx.translate(p.x * ts + ts/2, p.y * ts + ts/2);
+            ctx.scale(scale, scale);
+            ctx.globalAlpha = alpha;
+
+            if (laceImg.complete) {
+                // 從織帶圖片中心截取方塊
+                const crop = 350;
+                ctx.drawImage(laceImg, (laceImg.width-crop)/2, (laceImg.height-crop)/2, crop, crop, -ts/2, -ts/2, ts, ts);
+            } else {
+                ctx.fillStyle = var(--paiho-red); ctx.fillRect(-ts/2, -ts/2, ts, ts);
+            }
             ctx.restore();
+        });
+
+        // 畫粒子
+        particles.forEach(p => {
+            ctx.fillStyle = `rgba(230, 0, 18, ${p.life})`;
+            ctx.beginPath(); ctx.arc(p.x, p.y, 4 * p.life, 0, Math.PI*2); ctx.fill();
         });
     }
 
-    function varColor(head) {
-        return head ? "#e60012" : "#c0392b";
-    }
-
-    function control(x, y) {
-        if ((x === -dx && x !== 0) || (y === -dy && y !== 0)) return;
-        dx = x; dy = y;
+    function spawnEyelet() {
+        eyelet = {x: Math.floor(Math.random()*grid), y: Math.floor(Math.random()*grid)};
+        if (snake.some(p => p.x === eyelet.x && p.y === eyelet.y)) spawnEyelet();
     }
 
     function checkHit() {
         const h = snake[0];
-        if (h.x<0 || h.x>=grid || h.y<0 || h.y>=grid) return true;
-        for (let i=1; i<snake.length; i++) {
-            if (snake[i].x === h.x && snake[i].y === h.y) return true;
-        }
-        return false;
+        return h.x<0 || h.x>=grid || h.y<0 || h.y>=grid || snake.slice(1).some(p => p.x === h.x && p.y === h.y);
     }
 
-    function spawnFood() {
-        food = {x: Math.floor(Math.random()*grid), y: Math.floor(Math.random()*grid)};
-        if (snake.some(p => p.x === food.x && p.y === food.y)) spawnFood();
+    let lastTick = 0;
+    function main(t) {
+        requestAnimationFrame(main);
+        if (t - lastTick < 220) return;
+        lastTick = t;
+        if (checkHit()) { alert("遊戲結束！穿孔得分: " + score); restart(); return; }
+        update(); draw();
     }
 
-    function reset() {
-        score = 0; steps = 0; dx = 0; dy = -1;
-        snake = [{x: 8, y: 12}, {x: 8, y: 13}, {x: 8, y: 14}];
-        actionEl.innerText = "RESTART!";
-        spawnFood();
+    function restart() {
+        score = 0; count = 0; dx = 0; dy = -1;
+        snake = [{x: 7, y: 11}, {x: 7, y: 12}, {x: 7, y: 13}];
+        spawnEyelet();
     }
 
-    spawnFood();
-    requestAnimationFrame(loop);
+    spawnEyelet();
+    requestAnimationFrame(main);
 </script>
 </body>
 </html>
