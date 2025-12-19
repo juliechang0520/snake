@@ -3,30 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 質感 2D 貪食蛇</title>
+    <title>紅白編織鞋帶貪食蛇</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #1a1a1a; }
+        body { background-color: #1a1a1a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         canvas {
-            background: radial-gradient(circle, #2c2c2c 0%, #000000 100%);
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
-            border-radius: 12px;
+            background: #252525;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+            border: 5px solid #333;
+            border-radius: 15px;
         }
         .btn-control {
-            @apply w-16 h-16 bg-gray-700 text-white rounded-full flex items-center justify-center active:bg-blue-500 shadow-lg transition-all;
-            user-select: none;
+            @apply w-16 h-16 bg-zinc-800 text-white rounded-2xl flex items-center justify-center active:bg-red-600 shadow-xl border-b-4 border-black transition-all;
+            font-size: 1.5rem;
         }
     </style>
 </head>
-<body class="flex flex-col items-center justify-center min-h-screen p-4">
+<body class="flex flex-col items-center justify-center min-h-screen">
 
-    <div class="text-white text-3xl font-bold mb-4 tracking-widest">
-        SCORE: <span id="score">0</span>
+    <div class="mb-6 text-center">
+        <h2 class="text-zinc-500 text-xs uppercase tracking-[0.3em] mb-1">Premium Lace Edition</h2>
+        <div class="text-white text-5xl font-black italic tracking-tighter">
+            SCORE: <span id="score" class="text-red-500">0</span>
+        </div>
     </div>
 
-    <canvas id="snakeGame" width="400" height="400"></canvas>
+    <canvas id="laceGame" width="400" height="400"></canvas>
 
-    <div class="mt-8 grid grid-cols-3 gap-2">
+    <div class="mt-10 grid grid-cols-3 gap-4">
         <div></div>
         <button class="btn-control" onmousedown="changeDir('UP')">▲</button>
         <div></div>
@@ -36,15 +40,14 @@
     </div>
 
     <script>
-        const canvas = document.getElementById("snakeGame");
+        const canvas = document.getElementById("laceGame");
         const ctx = canvas.getContext("2d");
         const scoreElement = document.getElementById("score");
 
-        const box = 20; // 格點大小
+        const box = 20;
         let score = 0;
-        let gameSpeed = 100;
+        let gameSpeed = 200; // 速度減半 (數值越大越慢)
 
-        // 初始化蛇與食物
         let snake = [{ x: 9 * box, y: 10 * box }];
         let food = {
             x: Math.floor(Math.random() * 19 + 1) * box,
@@ -53,79 +56,111 @@
 
         let d = "RIGHT";
 
-        // 核心修正：changeDir 函數
-        function changeDir(newDirection) {
-            if (newDirection == "LEFT" && d != "RIGHT") d = "LEFT";
-            else if (newDirection == "UP" && d != "DOWN") d = "UP";
-            else if (newDirection == "RIGHT" && d != "LEFT") d = "RIGHT";
-            else if (newDirection == "DOWN" && d != "UP") d = "DOWN";
+        function changeDir(newDir) {
+            if (newDir == "LEFT" && d != "RIGHT") d = "LEFT";
+            else if (newDir == "UP" && d != "DOWN") d = "UP";
+            else if (newDir == "RIGHT" && d != "LEFT") d = "RIGHT";
+            else if (newDir == "DOWN" && d != "UP") d = "DOWN";
         }
 
-        // 監聽鍵盤
         document.addEventListener("keydown", (e) => {
-            if (e.keyCode == 37) changeDir("LEFT");
-            else if (e.keyCode == 38) changeDir("UP");
-            else if (e.keyCode == 39) changeDir("RIGHT");
-            else if (e.keyCode == 40) changeDir("DOWN");
+            const key = e.keyCode;
+            if (key == 37) changeDir("LEFT");
+            else if (key == 38) changeDir("UP");
+            else if (key == 39) changeDir("RIGHT");
+            else if (key == 40) changeDir("DOWN");
         });
+
+        // 1. 繪製金屬束頭 (Aglet)
+        function drawAglet(x, y) {
+            ctx.save();
+            let grad = ctx.createLinearGradient(x, y, x + box, y + box);
+            grad.addColorStop(0, "#e0e0e0"); // 銀金屬高光
+            grad.addColorStop(0.5, "#ffffff"); 
+            grad.addColorStop(1, "#757575"); 
+            
+            ctx.fillStyle = grad;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = "black";
+            ctx.beginPath();
+            ctx.roundRect(x + 2, y + 2, box - 4, box - 4, 5);
+            ctx.fill();
+            
+            // 束頭裝飾線
+            ctx.strokeStyle = "rgba(0,0,0,0.2)";
+            ctx.strokeRect(x + 6, y + 4, 2, box - 8);
+            ctx.restore();
+        }
+
+        // 2. 繪製紅白編織織帶 (Woven Lace)
+        function drawLace(x, y) {
+            ctx.save();
+            // 白色底色
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.roundRect(x + 1, y + 1, box - 2, box - 2, 3);
+            ctx.fill();
+
+            // 紅色斜紋織法
+            ctx.strokeStyle = "#d32f2f";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            // 第一條斜線
+            ctx.moveTo(x + 4, y + 1);
+            ctx.lineTo(x + box - 1, y + box - 4);
+            // 第二條斜線
+            ctx.moveTo(x + 1, y + 6);
+            ctx.lineTo(x + box - 6, y + box - 1);
+            ctx.stroke();
+
+            // 織帶陰影輪廓
+            ctx.strokeStyle = "rgba(0,0,0,0.15)";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 1, y + 1, box - 2, box - 2);
+            ctx.restore();
+        }
+
+        // 3. 繪製金屬鞋孔 (Eyelet)
+        function drawEyelet(x, y) {
+            ctx.save();
+            const cx = x + box/2;
+            const cy = y + box/2;
+
+            // 金屬環立體感
+            let grad = ctx.createRadialGradient(cx-3, cy-3, 1, cx, cy, 10);
+            grad.addColorStop(0, "#ffffff"); // 反光點
+            grad.addColorStop(0.3, "#bdbdbd"); 
+            grad.addColorStop(0.8, "#424242"); // 內圈暗處
+            grad.addColorStop(1, "#111");
+
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 中間孔洞 (空心感)
+            ctx.fillStyle = "#1a1a1a";
+            ctx.beginPath();
+            ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 繪製蛇
+            // 畫鞋孔 (食物)
+            drawEyelet(food.x, food.y);
+
+            // 畫蛇 (鞋帶)
             for (let i = 0; i < snake.length; i++) {
-                const isHead = (i === 0);
-                
-                // 設定 3D 陰影
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
-                ctx.shadowOffsetX = 4;
-                ctx.shadowOffsetY = 4;
-
-                // 建立徑向漸層營造 3D 球體感
-                const gradient = ctx.createRadialGradient(
-                    snake[i].x + 7, snake[i].y + 7, 2, 
-                    snake[i].x + 10, snake[i].y + 10, 10
-                );
-
-                if (isHead) {
-                    gradient.addColorStop(0, "#ffeb3b"); // 頭部亮色
-                    gradient.addColorStop(1, "#f44336"); // 頭部深色
+                if (i === 0) {
+                    drawAglet(snake[i].x, snake[i].y);
                 } else {
-                    gradient.addColorStop(0, "#a7ffeb"); // 身體亮色
-                    gradient.addColorStop(1, "#00bfa5"); // 身體深色
+                    drawLace(snake[i].x, snake[i].y);
                 }
-
-                ctx.fillStyle = gradient;
-                
-                // 畫出圓潤的蛇身
-                ctx.beginPath();
-                ctx.roundRect(snake[i].x, snake[i].y, box - 2, box - 2, 8);
-                ctx.fill();
-                ctx.closePath();
             }
 
-            // 2. 繪製食物 (發光的 3D 球體)
-            ctx.shadowColor = "#ffeb3b";
-            ctx.shadowBlur = 15;
-            const foodGrad = ctx.createRadialGradient(
-                food.x + 7, food.y + 7, 2, 
-                food.x + 10, food.y + 10, 10
-            );
-            foodGrad.addColorStop(0, "#ffffff");
-            foodGrad.addColorStop(1, "#ff9800");
-            ctx.fillStyle = foodGrad;
-            
-            ctx.beginPath();
-            ctx.arc(food.x + box/2, food.y + box/2, 8, 0, Math.PI * 2);
-            ctx.fill();
-
-            // 重置陰影設定
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-
-            // 3. 移動邏輯
             let snakeX = snake[0].x;
             let snakeY = snake[0].y;
 
@@ -134,7 +169,7 @@
             if (d == "RIGHT") snakeX += box;
             if (d == "DOWN") snakeY += box;
 
-            // 檢查是否吃到食物
+            // 吃到食物邏輯
             if (snakeX == food.x && snakeY == food.y) {
                 score++;
                 scoreElement.innerText = score;
@@ -148,11 +183,14 @@
 
             let newHead = { x: snakeX, y: snakeY };
 
-            // 4. 碰撞偵測 (撞牆或撞到自己)
+            // 死亡判定
             if (snakeX < 0 || snakeX >= canvas.width || snakeY < 0 || snakeY >= canvas.height || collision(newHead, snake)) {
                 clearInterval(game);
-                alert("Game Over! 最終分數: " + score);
-                location.reload();
+                setTimeout(() => {
+                    alert("GAME OVER\nFinal Score: " + score);
+                    location.reload();
+                }, 10);
+                return;
             }
 
             snake.unshift(newHead);
