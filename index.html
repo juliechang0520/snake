@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>PAIHO 3D Snake - Professional</title>
+    <title>PAIHO 3D Snake - Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -14,6 +14,8 @@
                display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; 
                box-shadow: 0 6px 0 #900; transition: 0.1s; -webkit-tap-highlight-color: transparent; }
         .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #900; }
+        /* 提示字眼 */
+        .kbm-hint { position: absolute; bottom: 10px; right: 10px; font-size: 12px; color: #94a3b8; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -33,6 +35,7 @@
             <div class="btn col-start-1 row-start-2" onmousedown="changeDir(-1, 0)" ontouchstart="changeDir(-1, 0)">◀</div>
             <div class="btn col-start-2 row-start-2" onmousedown="changeDir(0, -1)" ontouchstart="changeDir(0, -1)">▼</div>
             <div class="btn col-start-3 row-start-2" onmousedown="changeDir(1, 0)" ontouchstart="changeDir(1, 0)">▶</div>
+            <div class="kbm-hint">Supports WASD / Arrow Keys</div>
         </div>
     </div>
 
@@ -71,8 +74,7 @@
             sun.position.set(20, 100, 20);
             scene.add(sun);
             
-            const grid = new THREE.GridHelper(200, 40, 0xCBD5E1, 0xE2E8F0);
-            scene.add(grid);
+            scene.add(new THREE.GridHelper(200, 40, 0xCBD5E1, 0xE2E8F0));
 
             const mat = new THREE.MeshStandardMaterial({ color: C.RED, roughness: 0.6 });
             rope = new THREE.Mesh(new THREE.BufferGeometry(), mat);
@@ -107,91 +109,24 @@
             if(isExit) game.exitPos.set(x, -5, z); else game.targetPos.set(x, 0.6, z);
         }
 
+        // --- 核心方向變換 ---
         window.changeDir = (x, z) => {
             const n = new THREE.Vector3(x, 0, -z).normalize();
             if(game.dir && n.dot(game.dir) > -0.5) game.nextDir = n;
         };
 
-        function reset() {
-            score = 0;
-            updateScoreUI();
-            game.status = 'PLAYER'; 
-            game.len = 80; 
-            game.pos.set(0, 0.6, 0); 
-            game.dir.set(0, 0, -1); 
-            game.nextDir = null;
-            game.history = [];
-            for(let i=0; i<100; i++) game.history.push(new THREE.Vector3(0, 0.6, i * 0.1));
-            exit.visible = false;
-            spawn(target, false);
-        }
-
-        function updateScoreUI() {
-            document.getElementById('score-text').innerText = "SCORE: " + String(score).padStart(3, '0');
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            if(game.status === 'PLAYER') {
-                if(game.nextDir) game.dir.lerp(game.nextDir, 0.25);
-                game.pos.add(game.dir.clone().multiplyScalar(0.35));
-                
-                if(Math.abs(game.pos.x) > 80 || Math.abs(game.pos.z) > 80) reset();
-
-                if(target.visible && game.pos.distanceTo(target.position) < 2.0) {
-                    score++;
-                    updateScoreUI();
-                    game.len += 50; 
-                    game.status = 'AUTO'; 
-                    target.visible = false;
-                    spawn(exit, true);
-                }
-            } else if (game.status === 'AUTO') {
-                const d = game.pos.distanceTo(game.exitPos);
-                if(d < 0.8) {
-                    game.pos.y = 0.6; 
-                    game.status = 'PLAYER'; 
-                    exit.visible = false; 
-                    spawn(target, false);
-                } else {
-                    const moveDir = game.exitPos.clone().sub(game.pos).normalize();
-                    game.pos.add(moveDir.multiplyScalar(0.6));
-                }
+        // --- 新增鍵盤事件監聽 ---
+        window.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowUp':    case 'w': case 'W': changeDir(0, 1);  e.preventDefault(); break;
+                case 'ArrowDown':  case 's': case 'S': changeDir(0, -1); e.preventDefault(); break;
+                case 'ArrowLeft':  case 'a': case 'A': changeDir(-1, 0); e.preventDefault(); break;
+                case 'ArrowRight': case 'd': case 'D': changeDir(1, 0);  e.preventDefault(); break;
             }
-
-            // 更新歷史路徑
-            if(game.history.length === 0 || game.history[0].distanceTo(game.pos) > 0.1) {
-                game.history.unshift(game.pos.clone());
-                if(game.history.length > 2000) game.history.pop();
-            }
-
-            // 更新渲染模型
-            const pts = game.history.slice(0, game.len);
-            if(pts.length > 2) {
-                try {
-                    const curve = new THREE.CatmullRomCurve3(pts);
-                    const geo = new THREE.TubeGeometry(curve, Math.min(pts.length, 200), 0.9, 8, false);
-                    const v = geo.attributes.position;
-                    for(let i=0; i<v.count; i++) v.setY(i, v.getY(i) * 0.3); // 扁平鞋帶特徵
-                    v.needsUpdate = true;
-                    if(rope.geometry) rope.geometry.dispose();
-                    rope.geometry = geo;
-                } catch(e) {}
-            }
-
-            renderer.render(scene, camera);
-        }
-
-        window.addEventListener('resize', () => {
-            const aspect = window.innerWidth / window.innerHeight;
-            camera.left = -40 * aspect; camera.right = 40 * aspect;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // 啟動 (確保 DOM 載入後執行)
-        window.onload = init;
-    </script>
-</body>
-</html>
+        function reset() {
+            score = 0;
+            document.getElementById('score-text').innerText = "SCORE: 000";
+            game.status = 'PLAYER'; 
+            game.len
