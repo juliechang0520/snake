@@ -3,185 +3,181 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>PAIHO 3D Snake - Final</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>PAIHO 3D Snake - Professional</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background: #f1f5f9; margin: 0; overflow: hidden; touch-action: none; user-select: none; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; }
-        .control-btn { pointer-events: auto; width: 70px; height: 70px; background: #D31A24; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; box-shadow: 0 4px 0 #900; active-transform: translateY(4px); }
-        .control-btn:active { transform: translateY(4px); box-shadow: none; }
+        body { margin: 0; padding: 0; overflow: hidden; background: #f1f5f9; font-family: sans-serif; touch-action: none; user-select: none; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; z-index: 10; }
+        .btn { pointer-events: auto; width: 75px; height: 75px; background: #D31A24; color: white; border-radius: 50%; 
+               display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; 
+               box-shadow: 0 6px 0 #900; transition: 0.1s; -webkit-tap-highlight-color: transparent; }
+        .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #900; }
     </style>
 </head>
 <body>
-    <div id="game-container" style="width: 100vw; height: 100vh;"></div>
-    
+
+    <div id="canvas-container"></div>
+
     <div id="ui-layer">
-        <div class="h-16 bg-white/90 border-b flex items-center justify-between px-8 pointer-events-auto shadow-sm">
-            <span class="font-black text-2xl italic">PAIHO <span class="text-red-600">LACE</span></span>
-            <div id="score-display" class="bg-slate-900 text-green-400 px-4 py-1 rounded font-mono text-2xl shadow-inner">000</div>
+        <div class="h-20 bg-white/95 border-b flex items-center justify-between px-8 pointer-events-auto shadow-md">
+            <span class="font-black text-2xl italic tracking-tighter">PAIHO <span class="text-red-600">LACE</span></span>
+            <div id="score-text" class="bg-slate-900 text-green-400 px-5 py-2 rounded font-mono text-2xl shadow-inner">SCORE: 000</div>
         </div>
 
         <div class="flex-1"></div>
 
-        <div class="h-72 bg-slate-100/80 border-t grid grid-cols-3 items-center justify-items-center p-4 pointer-events-auto">
-            <div class="control-btn col-start-2" onpointerdown="setDir(0, 1)">▲</div>
-            <div class="control-btn col-start-1 row-start-2" onpointerdown="setDir(-1, 0)">◀</div>
-            <div class="control-btn col-start-2 row-start-2" onpointerdown="setDir(0, -1)">▼</div>
-            <div class="control-btn col-start-3 row-start-2" onpointerdown="setDir(1, 0)">▶</div>
+        <div class="h-80 bg-slate-100/95 border-t grid grid-cols-3 items-center justify-items-center p-6 pointer-events-auto">
+            <div class="btn col-start-2" onmousedown="changeDir(0, 1)" ontouchstart="changeDir(0, 1)">▲</div>
+            <div class="btn col-start-1 row-start-2" onmousedown="changeDir(-1, 0)" ontouchstart="changeDir(-1, 0)">◀</div>
+            <div class="btn col-start-2 row-start-2" onmousedown="changeDir(0, -1)" ontouchstart="changeDir(0, -1)">▼</div>
+            <div class="btn col-start-3 row-start-2" onmousedown="changeDir(1, 0)" ontouchstart="changeDir(1, 0)">▶</div>
         </div>
     </div>
 
     <script>
-        // --- 核心變數 ---
-        let scene, camera, renderer, ropeMesh, targetObj, exitObj;
+        let scene, camera, renderer, rope, target, exit;
         let score = 0;
-        let state = { 
-            status: 'PLAYER', 
-            pos: new THREE.Vector3(0, 0.6, 0), 
-            dir: new THREE.Vector3(0, 0, -1), 
-            nextDir: null, 
-            history: [], 
-            activeSegments: 80,
+        let game = {
+            status: 'PLAYER',
+            pos: new THREE.Vector3(0, 0.6, 0),
+            dir: new THREE.Vector3(0, 0, -1),
+            nextDir: null,
+            history: [],
+            len: 80,
             targetPos: new THREE.Vector3(),
             exitPos: new THREE.Vector3()
         };
 
-        const COLORS = { RED: 0xD31A24, DARK_RED: 0x800D12, GOLD: 0xD4AF37, CHROME: 0x94A3B8, HOLE: 0x0F172A };
+        const C = { RED: 0xD31A24, GOLD: 0xD4AF37, METAL: 0x94A3B8, HOLE: 0x0F172A };
 
         function init() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0xf1f5f9);
 
             const aspect = window.innerWidth / window.innerHeight;
-            const d = 30;
-            camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 1000);
-            camera.position.set(40, 40, 40);
+            camera = new THREE.OrthographicCamera(-40 * aspect, 40 * aspect, 40, -40, 0.1, 1000);
+            camera.position.set(50, 50, 50);
             camera.lookAt(0, 0, 0);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
-            document.getElementById('game-container').appendChild(renderer.domElement);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-            // 燈光
             scene.add(new THREE.AmbientLight(0xffffff, 0.8));
             const sun = new THREE.DirectionalLight(0xffffff, 0.6);
-            sun.position.set(10, 50, 10);
+            sun.position.set(20, 100, 20);
             scene.add(sun);
-            scene.add(new THREE.GridHelper(100, 50, 0xCBD5E1, 0xCBD5E1));
+            
+            const grid = new THREE.GridHelper(200, 40, 0xCBD5E1, 0xE2E8F0);
+            scene.add(grid);
 
-            // 鞋帶材質 (高品質 Sheen 效果)
-            const laceMat = new THREE.MeshPhysicalMaterial({ 
-                color: COLORS.RED, 
-                sheen: 1.0, 
-                sheenColor: new THREE.Color(COLORS.DARK_RED), 
-                roughness: 0.8 
-            });
-            ropeMesh = new THREE.Mesh(undefined, laceMat);
-            scene.add(ropeMesh);
+            const mat = new THREE.MeshStandardMaterial({ color: C.RED, roughness: 0.6 });
+            rope = new THREE.Mesh(new THREE.BufferGeometry(), mat);
+            scene.add(rope);
 
-            // 初始化鞋孔
-            targetObj = createEyelet(true);
-            exitObj = createEyelet(false);
-            scene.add(targetObj);
-            scene.add(exitObj);
+            target = createHole(true);
+            exit = createHole(false);
+            scene.add(target, exit);
 
-            resetGame();
+            reset();
             animate();
         }
 
-        function createEyelet(isGold) {
-            const group = new THREE.Group();
-            const mat = new THREE.MeshStandardMaterial({ color: isGold ? COLORS.GOLD : COLORS.CHROME, metalness: 1, roughness: 0.1 });
-            const torus = new THREE.Mesh(new THREE.TorusGeometry(1.3, 0.15, 16, 32), mat);
+        function createHole(isGold) {
+            const g = new THREE.Group();
+            const m = new THREE.MeshStandardMaterial({ color: isGold ? C.GOLD : C.METAL, metalness: 0.8, roughness: 0.2 });
+            const torus = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.2, 16, 32), m);
             torus.rotation.x = Math.PI/2;
-            const cyl = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 0.4, 32), mat);
-            const hole = new THREE.Mesh(new THREE.CircleGeometry(1.2, 32), new THREE.MeshBasicMaterial({ color: COLORS.HOLE }));
-            hole.rotation.x = -Math.PI/2; hole.position.y = 0.05;
-            group.add(torus, cyl, hole);
-            return group;
+            const dot = new THREE.Mesh(new THREE.CircleGeometry(1.4, 32), new THREE.MeshBasicMaterial({ color: C.HOLE }));
+            dot.rotation.x = -Math.PI/2; 
+            dot.position.y = 0.05;
+            g.add(torus, dot);
+            return g;
         }
 
-        function spawnHole(obj, isExit) {
-            const x = (Math.floor(Math.random() * 14) - 7) * 4;
-            const z = (Math.floor(Math.random() * 14) - 7) * 4;
+        function spawn(obj, isExit) {
+            const range = 6;
+            const x = (Math.floor(Math.random() * 12) - 6) * range;
+            const z = (Math.floor(Math.random() * 12) - 6) * range;
             obj.position.set(x, 0, z);
             obj.visible = true;
-            if(isExit) state.exitPos.set(x, -2.5, z);
-            else state.targetPos.set(x, 0.6, z);
+            if(isExit) game.exitPos.set(x, -5, z); else game.targetPos.set(x, 0.6, z);
         }
 
-        function setDir(x, z) {
-            const newDir = new THREE.Vector3(x, 0, -z).normalize();
-            if(newDir.dot(state.dir) > -0.5) state.nextDir = newDir;
-        }
+        window.changeDir = (x, z) => {
+            const n = new THREE.Vector3(x, 0, -z).normalize();
+            if(game.dir && n.dot(game.dir) > -0.5) game.nextDir = n;
+        };
 
-        function resetGame() {
+        function reset() {
             score = 0;
             updateScoreUI();
-            state.status = 'PLAYER';
-            state.activeSegments = 80;
-            state.pos.set(0, 0.6, 0);
-            state.dir.set(0, 0, -1);
-            state.history = [];
-            for(let i=0; i<50; i++) state.history.push(new THREE.Vector3(0, 0.6, i * 0.1));
-            exitObj.visible = false;
-            spawnHole(targetObj, false);
+            game.status = 'PLAYER'; 
+            game.len = 80; 
+            game.pos.set(0, 0.6, 0); 
+            game.dir.set(0, 0, -1); 
+            game.nextDir = null;
+            game.history = [];
+            for(let i=0; i<100; i++) game.history.push(new THREE.Vector3(0, 0.6, i * 0.1));
+            exit.visible = false;
+            spawn(target, false);
         }
 
         function updateScoreUI() {
-            document.getElementById('score-display').innerText = String(score).padStart(3, '0');
+            document.getElementById('score-text').innerText = "SCORE: " + String(score).padStart(3, '0');
         }
 
         function animate() {
             requestAnimationFrame(animate);
             
-            if(state.status === 'PLAYER') {
-                if(state.nextDir) { state.dir.lerp(state.nextDir, 0.25); }
-                state.pos.add(state.dir.clone().multiplyScalar(0.28));
+            if(game.status === 'PLAYER') {
+                if(game.nextDir) game.dir.lerp(game.nextDir, 0.25);
+                game.pos.add(game.dir.clone().multiplyScalar(0.35));
                 
-                // 邊界檢查
-                if(Math.abs(state.pos.x) > 60 || Math.abs(state.pos.z) > 60) resetGame();
+                if(Math.abs(game.pos.x) > 80 || Math.abs(game.pos.z) > 80) reset();
 
-                // 吃到孔洞
-                if(targetObj.visible && state.pos.distanceTo(targetObj.position) < 1.3) {
+                if(target.visible && game.pos.distanceTo(target.position) < 2.0) {
                     score++;
                     updateScoreUI();
-                    state.activeSegments += 50;
-                    state.status = 'AUTO';
-                    targetObj.visible = false;
-                    spawnHole(exitObj, true);
+                    game.len += 50; 
+                    game.status = 'AUTO'; 
+                    target.visible = false;
+                    spawn(exit, true);
                 }
-            } else if(state.status === 'AUTO') {
-                const dist = state.pos.distanceTo(state.exitPos);
-                if(dist < 0.6) {
-                    state.pos.y = 0.6;
-                    state.status = 'PLAYER';
-                    exitObj.visible = false;
-                    spawnHole(targetObj, false);
+            } else if (game.status === 'AUTO') {
+                const d = game.pos.distanceTo(game.exitPos);
+                if(d < 0.8) {
+                    game.pos.y = 0.6; 
+                    game.status = 'PLAYER'; 
+                    exit.visible = false; 
+                    spawn(target, false);
                 } else {
-                    const toExit = state.exitPos.clone().sub(state.pos).normalize();
-                    state.pos.add(toExit.multiplyScalar(0.5));
+                    const moveDir = game.exitPos.clone().sub(game.pos).normalize();
+                    game.pos.add(moveDir.multiplyScalar(0.6));
                 }
             }
 
-            // 更新軌跡
-            if(state.history[0].distanceTo(state.pos) > 0.1) {
-                state.history.unshift(state.pos.clone());
-                if(state.history.length > 1000) state.history.pop();
+            // 更新歷史路徑
+            if(game.history.length === 0 || game.history[0].distanceTo(game.pos) > 0.1) {
+                game.history.unshift(game.pos.clone());
+                if(game.history.length > 2000) game.history.pop();
             }
 
-            // 繪製扁平鞋帶
-            const pts = state.history.slice(0, state.activeSegments);
+            // 更新渲染模型
+            const pts = game.history.slice(0, game.len);
             if(pts.length > 2) {
-                const curve = new THREE.CatmullRomCurve3(pts);
-                const geo = new THREE.TubeGeometry(curve, pts.length, 0.8, 8, false);
-                const v = geo.attributes.position;
-                for(let i=0; i<v.count; i++) v.setY(i, v.getY(i) * 0.2); // 壓扁物理特性
-                v.needsUpdate = true;
-                if(ropeMesh.geometry) ropeMesh.geometry.dispose();
-                ropeMesh.geometry = geo;
+                try {
+                    const curve = new THREE.CatmullRomCurve3(pts);
+                    const geo = new THREE.TubeGeometry(curve, Math.min(pts.length, 200), 0.9, 8, false);
+                    const v = geo.attributes.position;
+                    for(let i=0; i<v.count; i++) v.setY(i, v.getY(i) * 0.3); // 扁平鞋帶特徵
+                    v.needsUpdate = true;
+                    if(rope.geometry) rope.geometry.dispose();
+                    rope.geometry = geo;
+                } catch(e) {}
             }
 
             renderer.render(scene, camera);
@@ -189,13 +185,13 @@
 
         window.addEventListener('resize', () => {
             const aspect = window.innerWidth / window.innerHeight;
-            const d = 30;
-            camera.left = -d * aspect; camera.right = d * aspect;
+            camera.left = -40 * aspect; camera.right = 40 * aspect;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        init();
+        // 啟動 (確保 DOM 載入後執行)
+        window.onload = init;
     </script>
 </body>
 </html>
