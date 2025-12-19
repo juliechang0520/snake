@@ -3,207 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>紅白編織鞋帶貪食蛇</title>
+    <title>鞋帶穿孔邏輯遊戲</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #1a1a1a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        canvas {
-            background: #252525;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.7);
-            border: 5px solid #333;
-            border-radius: 15px;
-        }
-        .btn-control {
-            @apply w-16 h-16 bg-zinc-800 text-white rounded-2xl flex items-center justify-center active:bg-red-600 shadow-xl border-b-4 border-black transition-all;
-            font-size: 1.5rem;
-        }
+        body { background-color: #121212; display: flex; flex-col; align-items: center; justify-content: center; min-h-screen; color: white; }
+        canvas { background: #222; border: 4px solid #444; border-radius: 12px; box-shadow: 0 0 40px rgba(0,0,0,0.8); }
+        .ui-panel { margin-bottom: 20px; text-align: center; }
+        .mode-indicator { padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; }
+        .mode-player { background: #ef4444; color: white; }
+        .mode-auto { background: #3b82f6; color: white; }
     </style>
 </head>
-<body class="flex flex-col items-center justify-center min-h-screen">
+<body>
 
-    <div class="mb-6 text-center">
-        <h2 class="text-zinc-500 text-xs uppercase tracking-[0.3em] mb-1">Premium Lace Edition</h2>
-        <div class="text-white text-5xl font-black italic tracking-tighter">
-            SCORE: <span id="score" class="text-red-500">0</span>
-        </div>
+    <div class="ui-panel">
+        <div class="text-4xl font-black mb-2 italic">HOLES: <span id="score">0</span></div>
+        <div id="status" class="mode-indicator mode-player">玩家控制中</div>
     </div>
 
-    <canvas id="laceGame" width="400" height="400"></canvas>
-
-    <div class="mt-10 grid grid-cols-3 gap-4">
-        <div></div>
-        <button class="btn-control" onmousedown="changeDir('UP')">▲</button>
-        <div></div>
-        <button class="btn-control" onmousedown="changeDir('LEFT')">◀</button>
-        <button class="btn-control" onmousedown="changeDir('DOWN')">▼</button>
-        <button class="btn-control" onmousedown="changeDir('RIGHT')">▶</button>
-    </div>
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
 
     <script>
-        const canvas = document.getElementById("laceGame");
+        const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
         const scoreElement = document.getElementById("score");
+        const statusElement = document.getElementById("status");
 
-        const box = 20;
+        // 參數設定 (2倍大)
+        const box = 40; 
+        const eyeletRadius = 18;
+        const laceWidth = 32;
         let score = 0;
-        let gameSpeed = 200; // 速度減半 (數值越大越慢)
+        let gameSpeed = 150;
 
-        let snake = [{ x: 9 * box, y: 10 * box }];
-        let food = {
-            x: Math.floor(Math.random() * 19 + 1) * box,
-            y: Math.floor(Math.random() * 19 + 1) * box
-        };
-
+        // 狀態管理
+        let isAutoMode = false;
+        let snake = [{ x: 7 * box, y: 7 * box }];
         let d = "RIGHT";
+        let targetHole = { x: 3 * box, y: 3 * box };
+        let pathHistory = []; // 紀錄地表上的路徑點用於碰撞判定
+
+        // 1. 繪製金屬鞋孔 (Eyelet)
+        function drawEyelet(x, y) {
+            const cx = x + box/2;
+            const cy = y + box/2;
+            
+            ctx.save();
+            let grad = ctx.createRadialGradient(cx-5, cy-5, 2, cx, cy, eyeletRadius);
+            grad.addColorStop(0, "#ffffff");
+            grad.addColorStop(0.5, "#999");
+            grad.addColorStop(1, "#333");
+            
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, eyeletRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 孔洞中心
+            ctx.fillStyle = "#111";
+            ctx.beginPath();
+            ctx.arc(cx, cy, eyeletRadius - 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // 2. 繪製垂直水平編織鞋帶 (Woven Lace)
+        function drawLace(x, y, opacity = 1) {
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            
+            // 白色基底
+            ctx.fillStyle = "#eee";
+            ctx.beginPath();
+            ctx.roundRect(x + 4, y + 4, box - 8, box - 8, 4);
+            ctx.fill();
+
+            // 垂直水平編織紋 (十字)
+            ctx.strokeStyle = "#d32f2f";
+            ctx.lineWidth = 4;
+            
+            // 水平線
+            ctx.beginPath();
+            ctx.moveTo(x + 4, y + box/2);
+            ctx.lineTo(x + box - 4, y + box/2);
+            ctx.stroke();
+
+            // 垂直線
+            ctx.beginPath();
+            ctx.moveTo(x + box/2, y + 4);
+            ctx.lineTo(x + box/2, y + box - 4);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
 
         function changeDir(newDir) {
+            if (isAutoMode) return; // 自動模式禁用控制
             if (newDir == "LEFT" && d != "RIGHT") d = "LEFT";
             else if (newDir == "UP" && d != "DOWN") d = "UP";
             else if (newDir == "RIGHT" && d != "LEFT") d = "RIGHT";
             else if (newDir == "DOWN" && d != "UP") d = "DOWN";
         }
 
-        document.addEventListener("keydown", (e) => {
-            const key = e.keyCode;
-            if (key == 37) changeDir("LEFT");
-            else if (key == 38) changeDir("UP");
-            else if (key == 39) changeDir("RIGHT");
-            else if (key == 40) changeDir("DOWN");
-        });
-
-        // 1. 繪製金屬束頭 (Aglet)
-        function drawAglet(x, y) {
-            ctx.save();
-            let grad = ctx.createLinearGradient(x, y, x + box, y + box);
-            grad.addColorStop(0, "#e0e0e0"); // 銀金屬高光
-            grad.addColorStop(0.5, "#ffffff"); 
-            grad.addColorStop(1, "#757575"); 
-            
-            ctx.fillStyle = grad;
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = "black";
-            ctx.beginPath();
-            ctx.roundRect(x + 2, y + 2, box - 4, box - 4, 5);
-            ctx.fill();
-            
-            // 束頭裝飾線
-            ctx.strokeStyle = "rgba(0,0,0,0.2)";
-            ctx.strokeRect(x + 6, y + 4, 2, box - 8);
-            ctx.restore();
-        }
-
-        // 2. 繪製紅白編織織帶 (Woven Lace)
-        function drawLace(x, y) {
-            ctx.save();
-            // 白色底色
-            ctx.fillStyle = "#ffffff";
-            ctx.beginPath();
-            ctx.roundRect(x + 1, y + 1, box - 2, box - 2, 3);
-            ctx.fill();
-
-            // 紅色斜紋織法
-            ctx.strokeStyle = "#d32f2f";
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            // 第一條斜線
-            ctx.moveTo(x + 4, y + 1);
-            ctx.lineTo(x + box - 1, y + box - 4);
-            // 第二條斜線
-            ctx.moveTo(x + 1, y + 6);
-            ctx.lineTo(x + box - 6, y + box - 1);
-            ctx.stroke();
-
-            // 織帶陰影輪廓
-            ctx.strokeStyle = "rgba(0,0,0,0.15)";
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x + 1, y + 1, box - 2, box - 2);
-            ctx.restore();
-        }
-
-        // 3. 繪製金屬鞋孔 (Eyelet)
-        function drawEyelet(x, y) {
-            ctx.save();
-            const cx = x + box/2;
-            const cy = y + box/2;
-
-            // 金屬環立體感
-            let grad = ctx.createRadialGradient(cx-3, cy-3, 1, cx, cy, 10);
-            grad.addColorStop(0, "#ffffff"); // 反光點
-            grad.addColorStop(0.3, "#bdbdbd"); 
-            grad.addColorStop(0.8, "#424242"); // 內圈暗處
-            grad.addColorStop(1, "#111");
-
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-            ctx.fill();
-
-            // 中間孔洞 (空心感)
-            ctx.fillStyle = "#1a1a1a";
-            ctx.beginPath();
-            ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 畫鞋孔 (食物)
-            drawEyelet(food.x, food.y);
-
-            // 畫蛇 (鞋帶)
-            for (let i = 0; i < snake.length; i++) {
-                if (i === 0) {
-                    drawAglet(snake[i].x, snake[i].y);
-                } else {
-                    drawLace(snake[i].x, snake[i].y);
-                }
-            }
-
-            let snakeX = snake[0].x;
-            let snakeY = snake[0].y;
-
-            if (d == "LEFT") snakeX -= box;
-            if (d == "UP") snakeY -= box;
-            if (d == "RIGHT") snakeX += box;
-            if (d == "DOWN") snakeY += box;
-
-            // 吃到食物邏輯
-            if (snakeX == food.x && snakeY == food.y) {
-                score++;
-                scoreElement.innerText = score;
-                food = {
-                    x: Math.floor(Math.random() * 19 + 1) * box,
-                    y: Math.floor(Math.random() * 19 + 1) * box
-                };
-            } else {
-                snake.pop();
-            }
-
-            let newHead = { x: snakeX, y: snakeY };
-
-            // 死亡判定
-            if (snakeX < 0 || snakeX >= canvas.width || snakeY < 0 || snakeY >= canvas.height || collision(newHead, snake)) {
-                clearInterval(game);
-                setTimeout(() => {
-                    alert("GAME OVER\nFinal Score: " + score);
-                    location.reload();
-                }, 10);
-                return;
-            }
-
-            snake.unshift(newHead);
-        }
-
-        function collision(head, array) {
-            for (let i = 0; i < array.length; i++) {
-                if (head.x == array[i].x && head.y == array[i].y) return true;
-            }
-            return false;
-        }
-
-        let game = setInterval(draw, gameSpeed);
-    </script>
-</body>
-</html>
+        window.addEventListener("keydown", (e) => {
+            if (e.keyCode == 37) changeDir("LEFT");
+            if (e.keyCode == 38) changeDir("UP");
+            if (e.keyCode == 39) changeDir("RIGHT");
+            if (e.keyCode == 40) changeDir("DOWN
