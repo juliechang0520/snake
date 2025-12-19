@@ -5,64 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>PAIHO 3D Snake - Lace Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f1f5f9;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            -webkit-user-select: none;
-            touch-action: none;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; overflow: hidden; -webkit-user-select: none; touch-action: none; }
         #root { height: 100vh; display: flex; flex-direction: column; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <script type="module">
-        // 修正 GitHub Pages 載入問題：改用直接路徑引用
-        import React, { useState, useRef, useCallback, useEffect, useImperativeHandle, forwardRef } from 'https://esm.sh/react@19.0.0';
-        import ReactDOM from 'https://esm.sh/react-dom@19.0.0/client';
-        import * as THREE from 'https://esm.sh/three@0.160.0';
+    <script>
+        // 將全域變數重新映射，保持邏輯不變
+        const React = window.React;
+        const { useState, useRef, useCallback, useEffect, useImperativeHandle, forwardRef } = React;
+        const ReactDOM = window.ReactDOM;
+        const THREE = window.THREE;
 
         // --- CONSTANTS ---
-        const COLORS = {
-            PAIHO_RED: '#D31A24', 
-            PAIHO_DARK_RED: '#800D12',
-            GOLD: '#D4AF37',
-            DARK_BG: '#F1F5F9',   
-            GROUND: '#FFFFFF',    
-            GRID: '#CBD5E1',      
-            HOLE_INNER: '#0F172A',
-            UI_BG: '#FFFFFF', 
-            BORDER: '#E2E8F0',
-            METAL_GOLD: '#F59E0B', 
-            CHROME: '#94A3B8',
-        };
-
+        const COLORS = { PAIHO_RED: '#D31A24', PAIHO_DARK_RED: '#800D12', GOLD: '#D4AF37', DARK_BG: '#F1F5F9', GROUND: '#FFFFFF', GRID: '#CBD5E1', HOLE_INNER: '#0F172A', UI_BG: '#FFFFFF', BORDER: '#E2E8F0', METAL_GOLD: '#F59E0B', CHROME: '#94A3B8' };
         const ROPE_TEXTURE_URL = 'https://material.paiho.com/upload/BRD2147-J01F2.jpg';
+        const GAME_CONFIG = { GRID_SIZE: 2.0, INITIAL_SEGMENTS: 80, MAX_SEGMENTS: 500, SEGMENT_LENGTH: 0.1, ROPE_RADIUS: 0.8, ROPE_THICKNESS: 0.15, MOVE_SPEED: 0.22, AUTO_SPEED: 0.45, THRESHOLD_DISTANCE: 1.0, EYELET_RADIUS: 1.4, BOUNDS: 24, UPPER_Y: 0.6, LOWER_Y: -2.5, GROWTH_AMOUNT: 40, AGLET_LENGTH: 2.5 };
 
-        const GAME_CONFIG = {
-            GRID_SIZE: 2.0,        
-            INITIAL_SEGMENTS: 80,  
-            MAX_SEGMENTS: 1000,    // 優化 GitHub 效能，避免卡住
-            SEGMENT_LENGTH: 0.1,  
-            ROPE_RADIUS: 0.8,      
-            ROPE_THICKNESS: 0.15,  
-            MOVE_SPEED: 0.22,      
-            AUTO_SPEED: 0.45,       
-            THRESHOLD_DISTANCE: 1.0, 
-            EYELET_RADIUS: 1.4,    
-            BOUNDS: 24,            
-            UPPER_Y: 0.6,          
-            LOWER_Y: -2.5,         
-            GROWTH_AMOUNT: 40,     
-            AGLET_LENGTH: 2.5,     
-        };
-
+        // --- GameCanvas ---
         const GameCanvas = forwardRef(({ onScoreChange, onGameOver }, ref) => {
             const containerRef = useRef(null);
             const rendererRef = useRef(null);
@@ -72,331 +39,157 @@
             const exitEyeletRef = useRef(null);
             const pathHistoryRef = useRef([]);
 
-            const stateRef = useRef({
-                status: 'PLAYER',
-                targetPos: new THREE.Vector3(0, GAME_CONFIG.UPPER_Y, 0),
-                currentDir: new THREE.Vector3(0, 0, -1),
-                nextDir: null,
-                score: 0,
-                activeSegments: GAME_CONFIG.INITIAL_SEGMENTS,
-                exitPos: new THREE.Vector3(),
-            });
+            const stateRef = useRef({ status: 'PLAYER', targetPos: new THREE.Vector3(0, GAME_CONFIG.UPPER_Y, 0), currentDir: new THREE.Vector3(0, 0, -1), nextDir: null, score: 0, activeSegments: GAME_CONFIG.INITIAL_SEGMENTS, exitPos: new THREE.Vector3() });
 
             const create3DEyelet = (isTarget) => {
                 const group = new THREE.Group();
-                const metalMat = new THREE.MeshStandardMaterial({ 
-                    color: isTarget ? COLORS.GOLD : COLORS.CHROME, 
-                    metalness: 1.0, 
-                    roughness: 0.1 
-                });
+                const metalMat = new THREE.MeshStandardMaterial({ color: isTarget ? COLORS.GOLD : COLORS.CHROME, metalness: 1.0, roughness: 0.1 });
                 const torus = new THREE.Mesh(new THREE.TorusGeometry(GAME_CONFIG.EYELET_RADIUS - 0.1, 0.15, 16, 32), metalMat);
-                torus.rotation.x = Math.PI / 2;
-                torus.position.y = 0.2;
+                torus.rotation.x = Math.PI / 2; torus.position.y = 0.2;
                 const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(GAME_CONFIG.EYELET_RADIUS, GAME_CONFIG.EYELET_RADIUS, 0.4, 32), metalMat);
                 cylinder.position.y = 0.1;
                 const hole = new THREE.Mesh(new THREE.CircleGeometry(GAME_CONFIG.EYELET_RADIUS - 0.2, 32), new THREE.MeshBasicMaterial({ color: COLORS.HOLE_INNER }));
-                hole.rotation.x = -Math.PI / 2;
-                hole.position.y = 0.05;
+                hole.rotation.x = -Math.PI / 2; hole.position.y = 0.05;
                 group.add(torus, cylinder, hole);
-                group.castShadow = true;
                 return group;
             };
 
-            const getRandCoord = () => {
-                const gridCount = Math.floor(GAME_CONFIG.BOUNDS / GAME_CONFIG.GRID_SIZE);
-                const index = Math.floor(Math.random() * (gridCount * 2)) - gridCount;
-                return (index + 0.5) * GAME_CONFIG.GRID_SIZE;
-            };
-
             const spawnTarget = () => {
-                if (targetEyeletRef.current) {
-                    targetEyeletRef.current.position.set(getRandCoord(), 0, getRandCoord());
-                    targetEyeletRef.current.visible = true;
-                }
+                const gridCount = Math.floor(GAME_CONFIG.BOUNDS / GAME_CONFIG.GRID_SIZE);
+                const x = (Math.floor(Math.random() * (gridCount * 2)) - gridCount + 0.5) * GAME_CONFIG.GRID_SIZE;
+                const z = (Math.floor(Math.random() * (gridCount * 2)) - gridCount + 0.5) * GAME_CONFIG.GRID_SIZE;
+                if (targetEyeletRef.current) { targetEyeletRef.current.position.set(x, 0, z); targetEyeletRef.current.visible = true; }
             };
 
             const spawnExit = () => {
-                if (exitEyeletRef.current) {
-                    const x = getRandCoord(); const z = getRandCoord();
-                    exitEyeletRef.current.position.set(x, 0, z);
-                    exitEyeletRef.current.visible = true;
-                    stateRef.current.exitPos.set(x, GAME_CONFIG.LOWER_Y, z);
-                }
+                const gridCount = Math.floor(GAME_CONFIG.BOUNDS / GAME_CONFIG.GRID_SIZE);
+                const x = (Math.floor(Math.random() * (gridCount * 2)) - gridCount + 0.5) * GAME_CONFIG.GRID_SIZE;
+                const z = (Math.floor(Math.random() * (gridCount * 2)) - gridCount + 0.5) * GAME_CONFIG.GRID_SIZE;
+                if (exitEyeletRef.current) { exitEyeletRef.current.position.set(x, 0, z); exitEyeletRef.current.visible = true; stateRef.current.exitPos.set(x, GAME_CONFIG.LOWER_Y, z); }
             };
 
             const resetGame = () => {
-                const s = stateRef.current;
-                s.status = 'PLAYER';
-                s.score = 0;
-                s.activeSegments = GAME_CONFIG.INITIAL_SEGMENTS;
-                const startX = GAME_CONFIG.GRID_SIZE * 0.5;
-                const startZ = GAME_CONFIG.GRID_SIZE * 0.5;
-                s.targetPos.set(startX, GAME_CONFIG.UPPER_Y, startZ);
-                s.currentDir.set(0, 0, -1);
-                s.nextDir = null;
+                const s = stateRef.current; s.status = 'PLAYER'; s.score = 0; s.activeSegments = GAME_CONFIG.INITIAL_SEGMENTS;
+                s.targetPos.set(1.0, GAME_CONFIG.UPPER_Y, 1.0); s.currentDir.set(0, 0, -1); s.nextDir = null;
                 pathHistoryRef.current = [];
-                for (let i = 0; i < 40; i++) {
-                    pathHistoryRef.current.push(new THREE.Vector3(startX, GAME_CONFIG.UPPER_Y, startZ + i * 0.1));
-                }
+                for (let i = 0; i < 40; i++) pathHistoryRef.current.push(new THREE.Vector3(1.0, GAME_CONFIG.UPPER_Y, 1.0 + i * 0.1));
                 if (exitEyeletRef.current) exitEyeletRef.current.visible = false;
-                spawnTarget();
-                onScoreChange(0);
+                spawnTarget(); onScoreChange(0);
             };
 
-            useImperativeHandle(ref, () => ({
-                setDirection: (x, z) => {
-                    const s = stateRef.current;
-                    if (s.status !== 'PLAYER') return;
-                    const newDir = new THREE.Vector3(x, 0, -z).normalize();
-                    if (newDir.dot(s.currentDir) > -0.5) {
-                        s.nextDir = newDir;
-                    }
-                },
-                reset: resetGame
-            }));
+            useImperativeHandle(ref, () => ({ setDirection: (x, z) => { const s = stateRef.current; if (s.status !== 'PLAYER') return; const newDir = new THREE.Vector3(x, 0, -z).normalize(); if (newDir.dot(s.currentDir) > -0.5) s.nextDir = newDir; }, reset: resetGame }));
 
             useEffect(() => {
-                if (!containerRef.current) return;
-                const scene = new THREE.Scene();
-                scene.background = new THREE.Color(COLORS.DARK_BG);
-
-                const d = 25;
-                const aspect = containerRef.current.clientWidth / containerRef.current.clientHeight;
+                const scene = new THREE.Scene(); scene.background = new THREE.Color(COLORS.DARK_BG);
+                const d = 25; const aspect = containerRef.current.clientWidth / containerRef.current.clientHeight;
                 const camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 1000);
-                camera.position.set(0, 50, 0); 
-                camera.lookAt(0, 0, 0);
+                camera.position.set(0, 50, 0); camera.lookAt(0, 0, 0);
 
                 const renderer = new THREE.WebGLRenderer({ antialias: true });
                 renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
-                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-                renderer.shadowMap.enabled = true;
-                containerRef.current.appendChild(renderer.domElement);
+                renderer.shadowMap.enabled = true; containerRef.current.appendChild(renderer.domElement);
                 rendererRef.current = renderer;
 
                 scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-                const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-                sun.position.set(20, 50, 20);
-                sun.castShadow = true;
-                scene.add(sun);
-
+                const sun = new THREE.DirectionalLight(0xffffff, 0.9); sun.position.set(20, 50, 20); sun.castShadow = true; scene.add(sun);
                 scene.add(new THREE.GridHelper(100, 100 / GAME_CONFIG.GRID_SIZE, COLORS.GRID, COLORS.GRID));
 
                 const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: COLORS.GROUND }));
-                ground.rotation.x = -Math.PI / 2;
-                ground.position.y = -0.05;
-                ground.receiveShadow = true;
-                scene.add(ground);
+                ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; ground.receiveShadow = true; scene.add(ground);
 
-                const loader = new THREE.TextureLoader();
-                const ropeTex = loader.load(ROPE_TEXTURE_URL);
-                ropeTex.wrapS = ropeTex.wrapT = THREE.RepeatWrapping;
+                const loader = new THREE.TextureLoader(); const ropeTex = loader.load(ROPE_TEXTURE_URL);
+                const ropeMat = new THREE.MeshPhysicalMaterial({ color: COLORS.PAIHO_RED, map: ropeTex, roughness: 0.8, sheen: 1.0, sheenColor: new THREE.Color(COLORS.PAIHO_DARK_RED), side: THREE.DoubleSide });
+                const ropeMesh = new THREE.Mesh(undefined, ropeMat); ropeMesh.castShadow = true; scene.add(ropeMesh); ropeMeshRef.current = ropeMesh;
 
-                const ropeMat = new THREE.MeshPhysicalMaterial({ 
-                    color: COLORS.PAIHO_RED, map: ropeTex, roughness: 0.8,
-                    sheen: 1.0, sheenColor: new THREE.Color(COLORS.PAIHO_DARK_RED),
-                    side: THREE.DoubleSide
-                });
-                const ropeMesh = new THREE.Mesh(undefined, ropeMat);
-                ropeMesh.castShadow = true;
-                scene.add(ropeMesh);
-                ropeMeshRef.current = ropeMesh;
-
-                const agletMesh = new THREE.Mesh(
-                    new THREE.CylinderGeometry(GAME_CONFIG.ROPE_RADIUS * 1.05, GAME_CONFIG.ROPE_RADIUS, GAME_CONFIG.AGLET_LENGTH, 16),
-                    new THREE.MeshStandardMaterial({ color: COLORS.METAL_GOLD, metalness: 1.0, roughness: 0.1 })
-                );
-                agletMesh.castShadow = true;
-                scene.add(agletMesh);
-                agletMeshRef.current = agletMesh;
+                const agletMesh = new THREE.Mesh(new THREE.CylinderGeometry(GAME_CONFIG.ROPE_RADIUS * 1.05, GAME_CONFIG.ROPE_RADIUS, GAME_CONFIG.AGLET_LENGTH, 16), new THREE.MeshStandardMaterial({ color: COLORS.METAL_GOLD, metalness: 1.0, roughness: 0.1 }));
+                agletMesh.castShadow = true; scene.add(agletMesh); agletMeshRef.current = agletMesh;
 
                 targetEyeletRef.current = create3DEyelet(true); scene.add(targetEyeletRef.current);
                 exitEyeletRef.current = create3DEyelet(false); scene.add(exitEyeletRef.current);
 
                 resetGame();
-
                 let requestID;
                 const animate = () => {
                     requestID = requestAnimationFrame(animate);
-                    const s = stateRef.current;
-                    if (s.status === 'OVER') { renderer.render(scene, camera); return; }
-
+                    const s = stateRef.current; if (s.status === 'OVER') { renderer.render(scene, camera); return; }
                     const head = s.targetPos;
-
                     if (s.status === 'PLAYER') {
-                        if (s.nextDir) s.currentDir.lerp(s.nextDir, 0.2); 
-                        head.add(s.currentDir.clone().multiplyScalar(GAME_CONFIG.MOVE_SPEED));
-
-                        if (Math.abs(head.x) > GAME_CONFIG.BOUNDS || Math.abs(head.z) > GAME_CONFIG.BOUNDS) {
-                            s.status = 'OVER'; onGameOver(s.score); return;
-                        }
-
-                        const checkIdx = 35;
-                        for (let i = checkIdx; i < pathHistoryRef.current.length && i < s.activeSegments; i++) {
-                            const p = pathHistoryRef.current[i];
-                            if (p.y > 0 && head.distanceTo(p) < GAME_CONFIG.ROPE_RADIUS * 0.9) {
-                                s.status = 'OVER'; onGameOver(s.score); return;
-                            }
-                        }
-
-                        if (targetEyeletRef.current?.visible && head.distanceTo(targetEyeletRef.current.position) < GAME_CONFIG.THRESHOLD_DISTANCE) {
-                            s.score++; onScoreChange(s.score);
-                            s.activeSegments += GAME_CONFIG.GROWTH_AMOUNT;
-                            const hole = targetEyeletRef.current.position.clone();
-                            pathHistoryRef.current.unshift(new THREE.Vector3(hole.x, GAME_CONFIG.UPPER_Y, hole.z));
-                            pathHistoryRef.current.unshift(new THREE.Vector3(hole.x, GAME_CONFIG.LOWER_Y, hole.z));
-                            head.set(hole.x, GAME_CONFIG.LOWER_Y, hole.z);
-                            targetEyeletRef.current.visible = false;
-                            spawnExit();
-                            s.status = 'AUTO';
-                            return;
-                        }
+                        if (s.nextDir) s.currentDir.lerp(s.nextDir, 0.2); head.add(s.currentDir.clone().multiplyScalar(GAME_CONFIG.MOVE_SPEED));
+                        if (Math.abs(head.x) > GAME_CONFIG.BOUNDS || Math.abs(head.z) > GAME_CONFIG.BOUNDS) { s.status = 'OVER'; onGameOver(); return; }
+                        for (let i = 35; i < pathHistoryRef.current.length && i < s.activeSegments; i++) { if (pathHistoryRef.current[i].y > 0 && head.distanceTo(pathHistoryRef.current[i]) < GAME_CONFIG.ROPE_RADIUS * 0.9) { s.status = 'OVER'; onGameOver(); return; } }
+                        if (targetEyeletRef.current?.visible && head.distanceTo(targetEyeletRef.current.position) < GAME_CONFIG.THRESHOLD_DISTANCE) { s.score++; onScoreChange(s.score); s.activeSegments += GAME_CONFIG.GROWTH_AMOUNT; const hole = targetEyeletRef.current.position.clone(); pathHistoryRef.current.unshift(new THREE.Vector3(hole.x, GAME_CONFIG.UPPER_Y, hole.z)); pathHistoryRef.current.unshift(new THREE.Vector3(hole.x, GAME_CONFIG.LOWER_Y, hole.z)); head.set(hole.x, GAME_CONFIG.LOWER_Y, hole.z); targetEyeletRef.current.visible = false; spawnExit(); s.status = 'AUTO'; return; }
                     } else if (s.status === 'AUTO') {
                         const toExit = new THREE.Vector3().subVectors(s.exitPos, head);
-                        if (toExit.length() < GAME_CONFIG.THRESHOLD_DISTANCE * 0.5) {
-                            head.set(s.exitPos.x, GAME_CONFIG.UPPER_Y, s.exitPos.z);
-                            pathHistoryRef.current.unshift(new THREE.Vector3(s.exitPos.x, GAME_CONFIG.LOWER_Y, s.exitPos.z));
-                            pathHistoryRef.current.unshift(new THREE.Vector3(s.exitPos.x, GAME_CONFIG.UPPER_Y, s.exitPos.z));
-                            if (exitEyeletRef.current) exitEyeletRef.current.visible = false;
-                            spawnTarget();
-                            s.status = 'PLAYER';
-                        } else {
-                            head.add(toExit.normalize().multiplyScalar(GAME_CONFIG.AUTO_SPEED));
-                        }
+                        if (toExit.length() < 0.5) { head.set(s.exitPos.x, GAME_CONFIG.UPPER_Y, s.exitPos.z); pathHistoryRef.current.unshift(new THREE.Vector3(s.exitPos.x, GAME_CONFIG.LOWER_Y, s.exitPos.z)); pathHistoryRef.current.unshift(new THREE.Vector3(s.exitPos.x, GAME_CONFIG.UPPER_Y, s.exitPos.z)); exitEyeletRef.current.visible = false; spawnTarget(); s.status = 'PLAYER'; }
+                        else { head.add(toExit.normalize().multiplyScalar(GAME_CONFIG.AUTO_SPEED)); }
                     }
-
-                    if (head.distanceTo(pathHistoryRef.current[0]) >= GAME_CONFIG.SEGMENT_LENGTH) {
-                        pathHistoryRef.current.unshift(head.clone());
-                        if (pathHistoryRef.current.length > GAME_CONFIG.MAX_SEGMENTS) pathHistoryRef.current.pop();
-                    }
-
-                    if (agletMeshRef.current && pathHistoryRef.current.length > 2) {
-                        const h = pathHistoryRef.current[0];
-                        const prev = pathHistoryRef.current[1];
-                        const dir = new THREE.Vector3().subVectors(h, prev).normalize();
-                        agletMeshRef.current.position.copy(h.clone().add(dir.clone().multiplyScalar(GAME_CONFIG.AGLET_LENGTH * 0.4)));
-                        agletMeshRef.current.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-                    }
-
+                    if (head.distanceTo(pathHistoryRef.current[0]) >= GAME_CONFIG.SEGMENT_LENGTH) { pathHistoryRef.current.unshift(head.clone()); if (pathHistoryRef.current.length > 2000) pathHistoryRef.current.pop(); }
+                    if (agletMeshRef.current && pathHistoryRef.current.length > 2) { const h = pathHistoryRef.current[0]; const prev = pathHistoryRef.current[1]; const dir = new THREE.Vector3().subVectors(h, prev).normalize(); agletMeshRef.current.position.copy(h.clone().add(dir.clone().multiplyScalar(GAME_CONFIG.AGLET_LENGTH * 0.4))); agletMeshRef.current.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); }
                     if (ropeMeshRef.current && pathHistoryRef.current.length > 5) {
                         const visible = Math.min(s.activeSegments, pathHistoryRef.current.length);
                         const pts = pathHistoryRef.current.slice(0, visible);
-                        
                         if (pts.length > 2) {
                             const oldGeo = ropeMeshRef.current.geometry;
-                            const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.1);
-                            const tubeSegments = Math.min(pts.length, 256); 
-                            const geo = new THREE.TubeGeometry(curve, tubeSegments, GAME_CONFIG.ROPE_RADIUS, 8, false);
-                            
+                            const curve = new THREE.CatmullRomCurve3(pts);
+                            const geo = new THREE.TubeGeometry(curve, Math.min(pts.length, 128), GAME_CONFIG.ROPE_RADIUS, 8, false);
                             const pos = geo.attributes.position;
-                            for (let i = 0; i < pos.count; i++) {
-                                pos.setY(i, pos.getY(i) * (GAME_CONFIG.ROPE_THICKNESS / GAME_CONFIG.ROPE_RADIUS));
-                            }
-                            pos.needsUpdate = true;
-                            geo.computeVertexNormals();
-                            if (oldGeo) oldGeo.dispose();
-                            ropeMeshRef.current.geometry = geo;
+                            for (let i = 0; i < pos.count; i++) pos.setY(i, pos.getY(i) * (GAME_CONFIG.ROPE_THICKNESS / GAME_CONFIG.ROPE_RADIUS));
+                            pos.needsUpdate = true; geo.computeVertexNormals();
+                            if (oldGeo) oldGeo.dispose(); ropeMeshRef.current.geometry = geo;
                         }
                     }
                     renderer.render(scene, camera);
                 };
                 animate();
-
-                const handleResize = () => {
-                    const w = containerRef.current.clientWidth;
-                    const h = containerRef.current.clientHeight;
-                    camera.left = -d * (w/h); camera.right = d * (w/h);
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(w, h);
-                };
+                const handleResize = () => { const w = containerRef.current.clientWidth; const h = containerRef.current.clientHeight; camera.left = -d * (w/h); camera.right = d * (w/h); camera.updateProjectionMatrix(); renderer.setSize(w, h); };
                 window.addEventListener('resize', handleResize);
                 return () => { cancelAnimationFrame(requestID); window.removeEventListener('resize', handleResize); renderer.dispose(); };
             }, []);
-
-            return <div ref={containerRef} className="w-full h-full" />;
+            return React.createElement('div', { ref: containerRef, className: "w-full h-full" });
         });
 
-        const Controls = ({ onDirection }) => {
-            const Button = ({ children, onPress, className = "" }) => (
-                <div className={`flex items-center justify-center ${className}`}>
-                    <div className="w-16 h-16 bg-[#bdc7d4] rounded-full flex items-center justify-center shadow-[inset_4px_4px_8px_#9ea7b5,inset_-4px_-4px_8px_#ffffff]">
-                        <button 
-                            onPointerDown={(e) => { e.preventDefault(); onPress(); }}
-                            className="w-12 h-12 rounded-full flex items-center justify-center text-white text-xl active:translate-y-0.5 transition-all shadow-[0_4px_0_#900] touch-none"
-                            style={{ backgroundColor: COLORS.PAIHO_RED }}
-                        >
-                            {children}
-                        </button>
-                    </div>
-                </div>
-            );
-
-            return (
-                <div className="h-[220px] bg-[#d1d9e6] grid grid-cols-3 grid-rows-2 items-center justify-items-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                    <Button onPress={() => onDirection(0, 1)} className="col-start-2">▲</Button>
-                    <Button onPress={() => onDirection(-1, 0)} className="col-start-1 row-start-2">◀</Button>
-                    <Button onPress={() => onDirection(0, -1)} className="col-start-2 row-start-2">▼</Button>
-                    <Button onPress={() => onDirection(1, 0)} className="col-start-3 row-start-2">▶</Button>
-                </div>
-            );
-        };
-
+        // --- App Component ---
         const App = () => {
             const [score, setScore] = useState(0);
             const [isGameOver, setIsGameOver] = useState(false);
             const gameRef = useRef(null);
-
-            const handleDirection = useCallback((x, z) => {
-                if (gameRef.current && !isGameOver) {
-                    gameRef.current.setDirection(x, z);
-                }
-            }, [isGameOver]);
-
-            const handleRestart = () => {
-                setIsGameOver(false);
-                setScore(0);
-                if (gameRef.current) gameRef.current.reset();
-            };
-
+            const handleDirection = useCallback((x, z) => { if (gameRef.current && !isGameOver) gameRef.current.setDirection(x, z); }, [isGameOver]);
             useEffect(() => {
-                const handleKeyDown = (e) => {
-                    if (isGameOver) return;
-                    switch (e.key) {
-                        case 'ArrowUp': case 'w': handleDirection(0, 1); break;
-                        case 'ArrowDown': case 's': handleDirection(0, -1); break;
-                        case 'ArrowLeft': case 'a': handleDirection(-1, 0); break;
-                        case 'ArrowRight': case 'd': handleDirection(1, 0); break;
-                    }
-                };
-                window.addEventListener('keydown', handleKeyDown);
-                return () => window.removeEventListener('keydown', handleKeyDown);
+                const handleKeyDown = (e) => { if (isGameOver) return; switch (e.key) { case 'ArrowUp': handleDirection(0, 1); break; case 'ArrowDown': handleDirection(0, -1); break; case 'ArrowLeft': handleDirection(-1, 0); break; case 'ArrowRight': handleDirection(1, 0); break; } };
+                window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown);
             }, [handleDirection, isGameOver]);
 
-            return (
-                <div className="flex flex-col h-screen bg-slate-100 overflow-hidden select-none font-sans">
-                    <header className="h-14 flex items-center justify-between px-6 bg-white border-b border-slate-200 z-30 shadow-sm">
-                        <span className="font-black text-slate-900 tracking-tighter text-xl">PAIHO <span className="text-red-600">SNAKE</span></span>
-                        <div className="flex items-center space-x-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
-                            <span className="text-lg font-black text-slate-900 tabular-nums">{score}</span>
-                        </div>
-                    </header>
-                    <main className="flex-1 relative">
-                        <GameCanvas ref={gameRef} onScoreChange={setScore} onGameOver={() => setIsGameOver(true)} />
-                        {isGameOver && (
-                            <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-                                <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl flex flex-col items-center text-center">
-                                    <h2 className="text-3xl font-black text-slate-900 mb-2">Game Over</h2>
-                                    <button onClick={handleRestart} className="px-10 py-4 bg-red-600 text-white font-bold rounded-2xl">PLAY AGAIN</button>
-                                </div>
-                            </div>
-                        )}
-                    </main>
-                    <Controls onDirection={handleDirection} />
-                </div>
+            const Button = ({ children, onPress, className = "" }) => React.createElement('div', { className: `flex items-center justify-center ${className}` }, 
+                React.createElement('div', { className: "w-16 h-16 bg-[#bdc7d4] rounded-full flex items-center justify-center shadow-[inset_4px_4px_8px_#9ea7b5,inset_-4px_-4px_8px_#ffffff]" },
+                    React.createElement('button', { onPointerDown: (e) => { e.preventDefault(); onPress(); }, className: "w-12 h-12 rounded-full flex items-center justify-center text-white text-xl active:translate-y-0.5 transition-all shadow-[0_4px_0_#900] touch-none", style: { backgroundColor: COLORS.PAIHO_RED } }, children)
+                )
+            );
+
+            return React.createElement('div', { className: "flex flex-col h-screen bg-slate-100 overflow-hidden select-none" },
+                React.createElement('header', { className: "h-14 flex items-center justify-between px-6 bg-white border-b border-slate-200 z-30 shadow-sm" },
+                    React.createElement('span', { className: "font-black text-slate-900 tracking-tighter text-xl" }, 'PAIHO ', React.createElement('span', { className: "text-red-600" }, 'SNAKE')),
+                    React.createElement('div', { className: "flex items-center space-x-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200" }, React.createElement('span', { className: "text-lg font-black text-slate-900" }, score))
+                ),
+                React.createElement('main', { className: "flex-1 relative" },
+                    React.createElement(GameCanvas, { ref: gameRef, onScoreChange: setScore, onGameOver: () => setIsGameOver(true) }),
+                    isGameOver && React.createElement('div', { className: "absolute inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm" },
+                        React.createElement('div', { className: "bg-white p-10 rounded-[2.5rem] shadow-2xl flex flex-col items-center text-center" },
+                            React.createElement('h2', { className: "text-3xl font-black text-slate-900 mb-2" }, 'Game Over'),
+                            React.createElement('button', { onClick: () => { setIsGameOver(false); setScore(0); gameRef.current.reset(); }, className: "px-10 py-4 bg-red-600 text-white font-bold rounded-2xl" }, 'PLAY AGAIN')
+                        )
+                    )
+                ),
+                React.createElement('div', { className: "h-[220px] bg-[#d1d9e6] grid grid-cols-3 grid-rows-2 items-center justify-items-center p-4 pb-8" },
+                    React.createElement(Button, { onPress: () => handleDirection(0, 1), className: "col-start-2" }, '▲'),
+                    React.createElement(Button, { onPress: () => handleDirection(-1, 0), className: "col-start-1 row-start-2" }, '◀'),
+                    React.createElement(Button, { onPress: () => handleDirection(0, -1), className: "col-start-2 row-start-2" }, '▼'),
+                    React.createElement(Button, { onPress: () => handleDirection(1, 0), className: "col-start-3 row-start-2" }, '▶')
+                )
             );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(React.createElement(App));
     </script>
 </body>
 </html>
