@@ -3,155 +3,199 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>PAIHO 3D Snake</title>
+    <title>PAIHO 3D Snake - Final</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { font-family: sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
-        #root { height: 100vh; display: flex; flex-direction: column; }
+        body { font-family: 'Inter', sans-serif; background: #f1f5f9; margin: 0; overflow: hidden; touch-action: none; user-select: none; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; }
+        .control-btn { pointer-events: auto; width: 70px; height: 70px; background: #D31A24; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; box-shadow: 0 4px 0 #900; active-transform: translateY(4px); }
+        .control-btn:active { transform: translateY(4px); box-shadow: none; }
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="game-container" style="width: 100vw; height: 100vh;"></div>
+    
+    <div id="ui-layer">
+        <div class="h-16 bg-white/90 border-b flex items-center justify-between px-8 pointer-events-auto shadow-sm">
+            <span class="font-black text-2xl italic">PAIHO <span class="text-red-600">LACE</span></span>
+            <div id="score-display" class="bg-slate-900 text-green-400 px-4 py-1 rounded font-mono text-2xl shadow-inner">000</div>
+        </div>
+
+        <div class="flex-1"></div>
+
+        <div class="h-72 bg-slate-100/80 border-t grid grid-cols-3 items-center justify-items-center p-4 pointer-events-auto">
+            <div class="control-btn col-start-2" onpointerdown="setDir(0, 1)">▲</div>
+            <div class="control-btn col-start-1 row-start-2" onpointerdown="setDir(-1, 0)">◀</div>
+            <div class="control-btn col-start-2 row-start-2" onpointerdown="setDir(0, -1)">▼</div>
+            <div class="control-btn col-start-3 row-start-2" onpointerdown="setDir(1, 0)">▶</div>
+        </div>
+    </div>
 
     <script>
-        // 使用原生 React 寫法，徹底避開 Babel 編譯錯誤
-        const e = React.createElement;
-        const { useState, useRef, useEffect, forwardRef, useImperativeHandle } = React;
-
-        const COLORS = { RED: '#D31A24', DARK_RED: '#800D12', GOLD: '#D4AF37', CHROME: '#94A3B8', HOLE: '#0F172A' };
-
-        // --- 3D 渲染組件 ---
-        const GameCanvas = forwardRef(({ onScoreChange, onGameOver }, ref) => {
-            const containerRef = useRef();
-            const stateRef = useRef({
-                status: 'PLAYER', pos: new THREE.Vector3(0, 0.6, 0), dir: new THREE.Vector3(0, 0, -1),
-                nextDir: null, history: [], activeSegments: 80, score: 0, target: new THREE.Vector3(), exit: new THREE.Vector3()
-            });
-
-            const createEyelet = (isGold) => {
-                const group = new THREE.Group();
-                const mat = new THREE.MeshStandardMaterial({ color: isGold ? COLORS.GOLD : COLORS.CHROME, metalness: 1, roughness: 0.1 });
-                const torus = new THREE.Mesh(new THREE.TorusGeometry(1.3, 0.15, 16, 32), mat);
-                torus.rotation.x = Math.PI/2;
-                const cyl = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 0.4, 32), mat);
-                const hole = new THREE.Mesh(new THREE.CircleGeometry(1.2, 32), new THREE.MeshBasicMaterial({ color: COLORS.HOLE }));
-                hole.rotation.x = -Math.PI/2; hole.position.y = 0.05;
-                group.add(torus, cyl, hole);
-                return group;
-            };
-
-            const targetObj = createEyelet(true);
-            const exitObj = createEyelet(false);
-
-            const spawn = (obj, isExit) => {
-                const x = (Math.floor(Math.random()*16)-8)*2; const z = (Math.floor(Math.random()*16)-8)*2;
-                obj.position.set(x, 0, z); obj.visible = true;
-                if(isExit) stateRef.current.exit.set(x, -2.5, z); else stateRef.current.target.set(x, 0.6, z);
-            };
-
-            useImperativeHandle(ref, () => ({
-                setDir: (x, z) => { stateRef.current.nextDir = new THREE.Vector3(x,0,-z).normalize(); },
-                reset: () => {
-                    const s = stateRef.current; s.status = 'PLAYER'; s.score = 0; s.activeSegments = 80;
-                    s.pos.set(0, 0.6, 0); s.dir.set(0,0,-1); s.history = [];
-                    for(let i=0; i<50; i++) s.history.push(new THREE.Vector3(0, 0.6, i*0.1));
-                    exitObj.visible = false; spawn(targetObj, false); onScoreChange(0);
-                }
-            }));
-
-            useEffect(() => {
-                const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf1f5f9);
-                const cam = new THREE.OrthographicCamera(-30, 30, 30, -30, 0.1, 1000);
-                cam.position.set(30, 40, 30); cam.lookAt(0,0,0);
-                const renderer = new THREE.WebGLRenderer({ antialias: true });
-                renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
-                containerRef.current.appendChild(renderer.domElement);
-
-                scene.add(new THREE.AmbientLight(0xffffff, 0.8), targetObj, exitObj);
-                const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(10,50,10); scene.add(sun);
-                scene.add(new THREE.GridHelper(100, 50, 0xCBD5E1, 0xCBD5E1));
-
-                const laceMat = new THREE.MeshPhysicalMaterial({ color: COLORS.RED, sheen: 1, sheenColor: new THREE.Color(COLORS.DARK_RED), roughness: 0.8 });
-                const ropeMesh = new THREE.Mesh(undefined, laceMat); scene.add(ropeMesh);
-
-                ref.current.reset();
-                let rid;
-                const loop = () => {
-                    rid = requestAnimationFrame(loop);
-                    const s = stateRef.current; if(s.status==='OVER') { renderer.render(scene, cam); return; }
-
-                    if(s.status==='PLAYER'){
-                        if(s.nextDir) s.dir.lerp(s.nextDir, 0.2); s.pos.add(s.dir.clone().multiplyScalar(0.25));
-                        if(Math.abs(s.pos.x)>40 || Math.abs(s.pos.z)>40) { s.status='OVER'; onGameOver(); }
-                        if(targetObj.visible && s.pos.distanceTo(targetObj.position)<1.2) {
-                            s.score++; onScoreChange(s.score); s.activeSegments+=40; s.status='AUTO';
-                            targetObj.visible=false; spawn(exitObj, true);
-                        }
-                    } else {
-                        const d = s.pos.distanceTo(s.exit);
-                        if(d<0.5) { s.pos.y=0.6; s.status='PLAYER'; exitObj.visible=false; spawn(targetObj, false); }
-                        else s.pos.add(s.exit.clone().sub(s.pos).normalize().multiplyScalar(0.4));
-                    }
-
-                    if(s.history[0].distanceTo(s.pos)>0.1) { s.history.unshift(s.pos.clone()); if(s.history.length>1000) s.history.pop(); }
-
-                    const pts = s.history.slice(0, s.activeSegments);
-                    if(pts.length > 2) {
-                        const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length, 0.7, 8, false);
-                        const v = geo.attributes.position;
-                        for(let i=0; i<v.count; i++) v.setY(i, v.getY(i)*0.2); // 壓扁效果
-                        v.needsUpdate = true;
-                        if(ropeMesh.geometry) ropeMesh.geometry.dispose();
-                        ropeMesh.geometry = geo;
-                    }
-                    renderer.render(scene, cam);
-                };
-                loop();
-                return () => { cancelAnimationFrame(rid); renderer.dispose(); };
-            }, []);
-            return e('div', { ref: containerRef, className: 'w-full h-full' });
-        });
-
-        // --- 主程式組件 ---
-        const App = () => {
-            const [score, setScore] = useState(0);
-            const [over, setOver] = useState(false);
-            const gameRef = useRef();
-
-            const btn = (lab, x, z, cls) => e('div', { className: 'w-16 h-16 bg-slate-300 rounded-full flex items-center justify-center shadow-inner ' + cls },
-                e('button', { 
-                    onPointerDown: (ev) => { ev.preventDefault(); gameRef.current.setDir(x, z); },
-                    className: 'w-12 h-12 bg-red-600 text-white rounded-full font-bold shadow-md active:translate-y-1'
-                }, lab)
-            );
-
-            return e('div', { className: 'flex flex-col h-full' },
-                e('header', { className: 'h-16 bg-white border-b flex items-center justify-between px-8 shadow-sm' },
-                    e('span', { className: 'font-black text-2xl italic' }, 'PAIHO ', e('span', { className: 'text-red-600' }, 'LACE')),
-                    e('div', { className: 'bg-slate-900 text-green-400 px-4 py-1 rounded font-mono text-xl' }, String(score).padStart(3, '0'))
-                ),
-                e('main', { className: 'flex-1 relative' },
-                    e(GameCanvas, { ref: gameRef, onScoreChange: setScore, onGameOver: () => setOver(true) }),
-                    over && e('div', { className: 'absolute inset-0 bg-black/60 flex items-center justify-center z-50' },
-                        e('div', { className: 'bg-white p-8 rounded-3xl text-center' },
-                            e('h2', { className: 'text-2xl font-black mb-4' }, 'GAME OVER'),
-                            e('button', { onClick: () => { setOver(false); gameRef.current.reset(); }, className: 'bg-red-600 text-white px-8 py-2 rounded-full font-bold' }, 'RESTART')
-                        )
-                    )
-                ),
-                e('footer', { className: 'h-64 bg-slate-100 border-t grid grid-cols-3 items-center justify-items-center p-4' },
-                    btn("▲", 0, 1, "col-start-2"),
-                    btn("◀", -1, 0, "col-start-1 row-start-2"),
-                    btn("▼", 0, -1, "col-start-2 row-start-2"),
-                    btn("▶", 1, 0, "col-start-3 row-start-2")
-                )
-            );
+        // --- 核心變數 ---
+        let scene, camera, renderer, ropeMesh, targetObj, exitObj;
+        let score = 0;
+        let state = { 
+            status: 'PLAYER', 
+            pos: new THREE.Vector3(0, 0.6, 0), 
+            dir: new THREE.Vector3(0, 0, -1), 
+            nextDir: null, 
+            history: [], 
+            activeSegments: 80,
+            targetPos: new THREE.Vector3(),
+            exitPos: new THREE.Vector3()
         };
 
-        ReactDOM.render(e(App), document.getElementById('root'));
+        const COLORS = { RED: 0xD31A24, DARK_RED: 0x800D12, GOLD: 0xD4AF37, CHROME: 0x94A3B8, HOLE: 0x0F172A };
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf1f5f9);
+
+            const aspect = window.innerWidth / window.innerHeight;
+            const d = 30;
+            camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 1000);
+            camera.position.set(40, 40, 40);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('game-container').appendChild(renderer.domElement);
+
+            // 燈光
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+            sun.position.set(10, 50, 10);
+            scene.add(sun);
+            scene.add(new THREE.GridHelper(100, 50, 0xCBD5E1, 0xCBD5E1));
+
+            // 鞋帶材質 (高品質 Sheen 效果)
+            const laceMat = new THREE.MeshPhysicalMaterial({ 
+                color: COLORS.RED, 
+                sheen: 1.0, 
+                sheenColor: new THREE.Color(COLORS.DARK_RED), 
+                roughness: 0.8 
+            });
+            ropeMesh = new THREE.Mesh(undefined, laceMat);
+            scene.add(ropeMesh);
+
+            // 初始化鞋孔
+            targetObj = createEyelet(true);
+            exitObj = createEyelet(false);
+            scene.add(targetObj);
+            scene.add(exitObj);
+
+            resetGame();
+            animate();
+        }
+
+        function createEyelet(isGold) {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: isGold ? COLORS.GOLD : COLORS.CHROME, metalness: 1, roughness: 0.1 });
+            const torus = new THREE.Mesh(new THREE.TorusGeometry(1.3, 0.15, 16, 32), mat);
+            torus.rotation.x = Math.PI/2;
+            const cyl = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 0.4, 32), mat);
+            const hole = new THREE.Mesh(new THREE.CircleGeometry(1.2, 32), new THREE.MeshBasicMaterial({ color: COLORS.HOLE }));
+            hole.rotation.x = -Math.PI/2; hole.position.y = 0.05;
+            group.add(torus, cyl, hole);
+            return group;
+        }
+
+        function spawnHole(obj, isExit) {
+            const x = (Math.floor(Math.random() * 14) - 7) * 4;
+            const z = (Math.floor(Math.random() * 14) - 7) * 4;
+            obj.position.set(x, 0, z);
+            obj.visible = true;
+            if(isExit) state.exitPos.set(x, -2.5, z);
+            else state.targetPos.set(x, 0.6, z);
+        }
+
+        function setDir(x, z) {
+            const newDir = new THREE.Vector3(x, 0, -z).normalize();
+            if(newDir.dot(state.dir) > -0.5) state.nextDir = newDir;
+        }
+
+        function resetGame() {
+            score = 0;
+            updateScoreUI();
+            state.status = 'PLAYER';
+            state.activeSegments = 80;
+            state.pos.set(0, 0.6, 0);
+            state.dir.set(0, 0, -1);
+            state.history = [];
+            for(let i=0; i<50; i++) state.history.push(new THREE.Vector3(0, 0.6, i * 0.1));
+            exitObj.visible = false;
+            spawnHole(targetObj, false);
+        }
+
+        function updateScoreUI() {
+            document.getElementById('score-display').innerText = String(score).padStart(3, '0');
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if(state.status === 'PLAYER') {
+                if(state.nextDir) { state.dir.lerp(state.nextDir, 0.25); }
+                state.pos.add(state.dir.clone().multiplyScalar(0.28));
+                
+                // 邊界檢查
+                if(Math.abs(state.pos.x) > 60 || Math.abs(state.pos.z) > 60) resetGame();
+
+                // 吃到孔洞
+                if(targetObj.visible && state.pos.distanceTo(targetObj.position) < 1.3) {
+                    score++;
+                    updateScoreUI();
+                    state.activeSegments += 50;
+                    state.status = 'AUTO';
+                    targetObj.visible = false;
+                    spawnHole(exitObj, true);
+                }
+            } else if(state.status === 'AUTO') {
+                const dist = state.pos.distanceTo(state.exitPos);
+                if(dist < 0.6) {
+                    state.pos.y = 0.6;
+                    state.status = 'PLAYER';
+                    exitObj.visible = false;
+                    spawnHole(targetObj, false);
+                } else {
+                    const toExit = state.exitPos.clone().sub(state.pos).normalize();
+                    state.pos.add(toExit.multiplyScalar(0.5));
+                }
+            }
+
+            // 更新軌跡
+            if(state.history[0].distanceTo(state.pos) > 0.1) {
+                state.history.unshift(state.pos.clone());
+                if(state.history.length > 1000) state.history.pop();
+            }
+
+            // 繪製扁平鞋帶
+            const pts = state.history.slice(0, state.activeSegments);
+            if(pts.length > 2) {
+                const curve = new THREE.CatmullRomCurve3(pts);
+                const geo = new THREE.TubeGeometry(curve, pts.length, 0.8, 8, false);
+                const v = geo.attributes.position;
+                for(let i=0; i<v.count; i++) v.setY(i, v.getY(i) * 0.2); // 壓扁物理特性
+                v.needsUpdate = true;
+                if(ropeMesh.geometry) ropeMesh.geometry.dispose();
+                ropeMesh.geometry = geo;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            const aspect = window.innerWidth / window.innerHeight;
+            const d = 30;
+            camera.left = -d * aspect; camera.right = d * aspect;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        init();
     </script>
 </body>
 </html>
