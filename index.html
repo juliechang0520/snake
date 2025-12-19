@@ -3,176 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Three.js 3D 鞋帶穿孔遊戲</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <title>鞋帶穿孔：物理穿梭版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; background-color: #0f172a; overflow: hidden; font-family: sans-serif; }
-        #ui { position: absolute; top: 20px; width: 100%; text-align: center; pointer-events: none; }
-        .mode-tag { display: inline-block; padding: 6px 16px; border-radius: 99px; background: #ef4444; color: white; font-weight: 800; font-size: 0.8rem; }
+        body { background-color: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
+        #game-container { position: relative; }
+        canvas { border: 12px solid #1e293b; border-radius: 30px; box-shadow: 0 35px 60px -15px rgba(0, 0, 0, 0.7); }
         #game-over {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(15, 23, 42, 0.9); padding: 40px; border-radius: 20px;
-            display: none; flex-direction: column; align-items: center; border: 2px solid #334155;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.95); display: none;
+            flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 18px; z-index: 50; backdrop-filter: blur(8px);
         }
+        .mode-tag { padding: 8px 20px; border-radius: 99px; font-weight: 800; font-size: 0.8rem; transition: all 0.3s; text-transform: uppercase; letter-spacing: 0.1em; }
+        .player-active { background: #ef4444; color: white; }
+        .auto-active { background: #3b82f6; color: white; animation: pulse 0.8s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
 
-    <div id="ui">
-        <div id="statusTag" class="mode-tag mb-2">玩家模式</div>
-        <div class="text-white text-5xl font-black italic" id="score">0</div>
+    <div class="mb-6 text-center">
+        <div id="statusTag" class="mode-tag player-active mb-4">玩家：地表移動</div>
+        <div class="text-white text-6xl font-black italic tracking-tighter" id="score">0</div>
     </div>
 
-    <div id="game-over">
-        <h1 class="text-white text-4xl font-black mb-4">GAME OVER</h1>
-        <button onclick="location.reload()" class="px-8 py-3 bg-white text-black font-bold rounded-full uppercase">Restart</button>
+    <div id="game-container">
+        <div id="game-over">
+            <h1 class="text-white text-5xl font-black mb-2">GAME OVER</h1>
+            <button onclick="location.reload()" class="px-10 py-4 bg-white text-slate-900 font-black rounded-full shadow-2xl uppercase tracking-widest mt-4">Restart</button>
+        </div>
+        <canvas id="laceCanvas" width="600" height="600"></canvas>
     </div>
 
     <script>
-        // --- 初始化 Three.js 場景 ---
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setClearColor(0x253347); // 帆布藍底色
-        document.body.appendChild(renderer.domElement);
+        const canvas = document.getElementById("laceCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreEl = document.getElementById("score");
+        const statusEl = document.getElementById("statusTag");
 
-        // 燈光
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        scene.add(ambientLight);
-        const spotLight = new THREE.SpotLight(0xffffff, 0.8);
-        spotLight.position.set(0, 50, 50);
-        scene.add(spotLight);
-
-        // 參數與狀態
-        const box = 4; 
+        const box = 40; 
+        const eyeletR = 20;
         let score = 0;
         let isAutoMode = false;
         let isGameOver = false;
-        let gameSpeed = 200; // 地下與地表速度一致
+        
+        let snake = [{ x: 7 * box, y: 7 * box }];
+        let d = "RIGHT";
+        let targetHole = { x: 3 * box, y: 3 * box };
+        let pathHistory = [];
 
-        let snake = [{ x: 0, y: 0, z: 0 }];
-        let direction = { x: 1, y: 0 };
-        let targetHolePos = { x: 8, y: 8 };
-
-        // 3D 物件組
-        let laceMeshes = [];
-        const laceMaterial = new THREE.MeshStandardMaterial({ color: 0xcc0000, roughness: 0.7 });
-        const eyeletMaterial = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.1 });
-
-        // 繪製鞋孔 (Eyelet)
-        function createEyelet(x, y) {
-            const group = new THREE.Group();
-            const torusGeo = new THREE.TorusGeometry(1.8, 0.3, 16, 100);
-            const torus = new THREE.Mesh(torusGeo, eyeletMaterial);
-            torus.rotation.x = Math.PI / 2;
-            group.add(torus);
-            group.position.set(x, 0, y);
-            scene.add(group);
-            return group;
+        // 🎨 帆布背景
+        function drawCanvasTexture() {
+            ctx.fillStyle = "#253347"; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "rgba(255,255,255,0.03)";
+            for(let i=0; i<canvas.width; i+=4) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+            }
         }
 
-        let currentEyelet = createEyelet(targetHolePos.x, targetHolePos.y);
+        // 👟 繪製全紅織帶
+        function drawLace(x, y, isVisible) {
+            if (!isVisible) return;
+            ctx.save();
+            ctx.fillStyle = "#cc0000"; // 整條紅色
+            ctx.shadowBlur = isAutoMode ? 0 : 8;
+            ctx.shadowColor = "rgba(0,0,0,0.5)";
+            ctx.beginPath();
+            ctx.roundRect(x+2, y+2, box-4, box-4, 4);
+            ctx.fill();
 
-        // 遊戲邏輯更新
+            // 垂直/水平編織紋路 (深色紅線)
+            ctx.strokeStyle = "#880000";
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(x+box/2, y+4); ctx.lineTo(x+box/2, y+box-4); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x+4, y+box/2); ctx.lineTo(x+box-4, y+box/2); ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawEyelet(x, y, isTarget) {
+            const cx = x + box/2, cy = y + box/2;
+            ctx.save();
+            let g = ctx.createRadialGradient(cx-5, cy-5, 2, cx, cy, eyeletR);
+            g.addColorStop(0, "#f8fafc"); g.addColorStop(1, "#475569");
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(cx, cy, eyeletR, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#0f172a"; 
+            ctx.beginPath(); ctx.arc(cx, cy, eyeletR-7, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        }
+
+        function changeDir(newDir) {
+            if (isAutoMode || isGameOver) return;
+            if (newDir === "LEFT" && d !== "RIGHT") d = "LEFT";
+            else if (newDir === "UP" && d !== "DOWN") d = "UP";
+            else if (newDir === "RIGHT" && d !== "LEFT") d = "RIGHT";
+            else if (newDir === "DOWN" && d !== "UP") d = "DOWN";
+        }
+
+        window.addEventListener("keydown", e => {
+            if (e.keyCode === 37) changeDir("LEFT");
+            if (e.keyCode === 38) changeDir("UP");
+            if (e.keyCode === 39) changeDir("RIGHT");
+            if (e.keyCode === 40) changeDir("DOWN");
+        });
+
         function update() {
             if (isGameOver) return;
-
-            let head = { ...snake[0] };
+            let hX = snake[0].x, hY = snake[0].y;
 
             if (isAutoMode) {
-                // 自動模式：移動到目標 (速度與玩家模式相同)
-                if (head.x < targetHolePos.x) head.x += box;
-                else if (head.x > targetHolePos.x) head.x -= box;
-                else if (head.y < targetHolePos.y) head.y += box;
-                else if (head.y > targetHolePos.y) head.y -= box;
+                // 自動模式：移動到隨機下一個孔洞
+                if (hX < targetHole.x) hX += box;
+                else if (hX > targetHole.x) hX -= box;
+                else if (hY < targetHole.y) hY += box;
+                else if (hY > targetHole.y) hY -= box;
 
-                if (head.x === targetHolePos.x && head.y === targetHolePos.y) {
+                if (hX === targetHole.x && hY === targetHole.y) {
                     isAutoMode = false;
-                    document.getElementById('statusTag').innerText = "玩家模式";
-                    document.getElementById('statusTag').style.background = "#ef4444";
-                    scene.remove(currentEyelet);
-                    targetHolePos = { 
-                        x: (Math.floor(Math.random() * 6) - 3) * box, 
-                        y: (Math.floor(Math.random() * 6) - 3) * box 
+                    statusEl.innerText = "玩家：地表移動";
+                    statusEl.className = "mode-tag player-active";
+                    targetHole = {
+                        x: Math.floor(Math.random() * (canvas.width/box)) * box,
+                        y: Math.floor(Math.random() * (canvas.height/box)) * box
                     };
-                    currentEyelet = createEyelet(targetHolePos.x, targetHolePos.y);
                 }
-                head.z = -2; // 在地下移動時降低 Z 軸
             } else {
-                head.x += direction.x * box;
-                head.y += direction.y * box;
-                head.z = 0; // 地表高度
+                if (d === "LEFT") hX -= box; if (d === "UP") hY -= box;
+                if (d === "RIGHT") hX += box; if (d === "DOWN") hY += box;
 
-                // 邊界與碰撞檢測
-                if (Math.abs(head.x) > 20 || Math.abs(head.y) > 20) return endGame();
+                if (hX < 0 || hX >= canvas.width || hY < 0 || hY >= canvas.height) return endGame();
+                for (let p of pathHistory) if (hX === p.x && hY === p.y) return endGame();
 
-                if (head.x === targetHolePos.x && head.y === targetHolePos.y) {
-                    score++;
-                    document.getElementById('score').innerText = score;
+                if (hX === targetHole.x && hY === targetHole.y) {
+                    score++; scoreEl.innerText = score;
                     isAutoMode = true;
-                    document.getElementById('statusTag').innerText = "自動穿梭中";
-                    document.getElementById('statusTag').style.background = "#3b82f6";
+                    statusEl.innerText = "地下：自動穿梭";
+                    statusEl.className = "mode-tag auto-active";
+                    pathHistory = []; 
+                } else {
+                    pathHistory.push({x: hX, y: hY});
+                    if (pathHistory.length > 10) pathHistory.shift();
                 }
             }
-
-            snake.unshift(head);
-            if (snake.length > 8) snake.pop();
-
-            renderSnake();
+            snake.unshift({x: hX, y: hY});
+            if (snake.length > 12) snake.pop();
         }
 
-        function renderSnake() {
-            // 清除舊模型
-            laceMeshes.forEach(m => scene.remove(m));
-            laceMeshes = [];
+        function draw() {
+            drawCanvasTexture();
+            drawEyelet(targetHole.x, targetHole.y, true);
 
-            // 根據 snake 座標重新生成模型
-            snake.forEach((pos, i) => {
-                const geo = new THREE.BoxGeometry(3.5, 1, 3.5);
-                const mesh = new THREE.Mesh(geo, laceMaterial);
-                mesh.position.set(pos.x, pos.z, pos.y);
+            snake.forEach((s, i) => {
+                // 關鍵動態判定：
+                // 1. 在自動模式時，身體節點如果還沒到達目標孔洞，就不顯示 (模擬從孔洞鑽出)
+                // 2. 在玩家模式時，當蛇頭進入孔洞，後面的身體移動到孔洞後消失 (模擬鑽入孔洞)
+                let isVisible = true;
+                if (isAutoMode) {
+                    // 自動模式下，只有頭部顯示，模擬正在穿梭，身體留在「舊孔洞」消失了
+                    isVisible = (i === 0); 
+                }
                 
-                // 如果是自動模式，身體部分隱藏，模擬鑽入/鑽出感
-                if (isAutoMode && i > 0) mesh.visible = false;
-                
-                scene.add(mesh);
-                laceMeshes.push(mesh);
+                // 繪製織帶 (整條紅色)
+                drawLace(s.x, s.y, isVisible);
             });
         }
 
         function endGame() {
             isGameOver = true;
-            document.getElementById('game-over').style.display = "flex";
+            document.getElementById("game-over").style.display = "flex";
         }
 
-        // 鍵盤控制
-        window.addEventListener('keydown', e => {
-            if (isAutoMode) return;
-            if (e.keyCode === 37 && direction.x === 0) direction = { x: -1, y: 0 };
-            if (e.keyCode === 38 && direction.y === 0) direction = { x: 0, y: -1 };
-            if (e.keyCode === 39 && direction.x === 0) direction = { x: 1, y: 0 };
-            if (e.keyCode === 40 && direction.y === 0) direction = { x: 0, y: 1 };
-        });
-
-        camera.position.set(15, 25, 25);
-        camera.lookAt(0, 0, 0);
-
-        function animate() {
-            requestAnimationFrame(animate);
-            renderer.render(scene, camera);
+        function loop() {
+            update();
+            draw();
+            setTimeout(loop, isAutoMode ? 60 : 200);
         }
-
-        setInterval(update, gameSpeed);
-        animate();
-
-        // 響應式窗口
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        loop();
     </script>
 </body>
 </html>
