@@ -3,72 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PAIHO Elite - Adventure</title>
+    <title>PAIHO Elite - Extreme Visual</title>
     <style>
         :root {
             --paiho-red: #e60012;
-            --bg-dark: #f4f4f4;
-            --canvas-bg: #34495e;
-            --btn-base: #ecf0f1;
+            --surface: #eef2f7;
+            --canvas-shadow: rgba(163, 177, 198, 0.6);
+            --canvas-light: rgba(255, 255, 255, 1);
         }
         body, html {
             height: 100%; margin: 0; padding: 0;
-            background: var(--bg-dark); color: #333; overflow: hidden;
-            display: flex; flex-direction: column; font-family: 'Segoe UI', sans-serif;
+            background: var(--surface); color: #2d3436; overflow: hidden;
+            display: flex; flex-direction: column; font-family: 'Inter', sans-serif;
         }
 
         /* 頂部區域 (10%) */
         .header {
             height: 12%; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; background: #222; color: white;
+            justify-content: center; align-items: center; background: #1a1a1a; color: white;
+            border-bottom: 3px solid var(--paiho-red);
         }
-        .logo { font-size: 24px; font-weight: 900; letter-spacing: 2px; }
-        .logo i { color: var(--paiho-red); font-style: normal; }
-        .stats { display: flex; gap: 15px; margin-top: 5px; }
-        .pill { background: rgba(255,255,255,0.1); padding: 4px 15px; border-radius: 20px; font-size: 12px; border: 1px solid var(--paiho-red); }
+        .logo { font-size: 20px; font-weight: 900; letter-spacing: 5px; text-transform: uppercase; }
+        .logo span { color: var(--paiho-red); }
+        .status-row { display: flex; gap: 15px; margin-top: 5px; }
+        .pill { background: rgba(255,255,255,0.1); padding: 2px 12px; border-radius: 20px; font-size: 11px; border: 1px solid var(--paiho-red); }
 
         /* 遊戲畫布區 (65%) */
         #stage {
-            height: 65%; width: 100%; display: flex; align-items: center; justify-content: center; padding: 10px; box-sizing: border-box;
+            height: 65%; width: 100%; display: flex; align-items: center; justify-content: center;
+            padding: 15px; box-sizing: border-box;
         }
         canvas {
-            background-color: var(--canvas-bg);
-            background-image: radial-gradient(#2c3e50 1px, transparent 1px);
-            background-size: 20px 20px;
-            border-radius: 30px; 
-            box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+            background: #2c3e50;
+            border-radius: 40px; 
+            box-shadow: 15px 15px 35px var(--canvas-shadow), -12px -12px 30px var(--canvas-light);
             max-width: 100%; max-height: 100%;
-            transition: transform 0.1s ease;
         }
 
-        /* 下方控制區 (23%) */
+        /* 3D 控制區 (25%) */
         .controls {
             height: 23%; width: 100%; display: grid;
-            grid-template-columns: repeat(4, 1fr); gap: 10px;
-            padding: 15px; box-sizing: border-box; background: white;
+            grid-template-columns: repeat(3, 1fr); gap: 10px;
+            padding: 15px; box-sizing: border-box;
         }
         .btn {
-            background: #e0e5ec; border: none; border-radius: 15px;
-            box-shadow: 6px 6px 12px #a3b1c6, -6px -6px 12px #ffffff;
+            background: var(--surface); border: none; border-radius: 20px;
+            box-shadow: 6px 6px 12px #babbc1, -6px -6px 12px #ffffff;
             display: flex; align-items: center; justify-content: center;
-            font-size: 24px; color: #444; transition: 0.1s;
+            font-size: 28px; color: #444; transition: all 0.1s ease;
             -webkit-tap-highlight-color: transparent;
         }
         .btn:active {
-            box-shadow: inset 4px 4px 8px #a3b1c6, inset -4px -4px 8px #ffffff;
+            box-shadow: inset 4px 4px 8px #babbc1, inset -4px -4px 8px #ffffff;
             transform: scale(0.92); color: var(--paiho-red);
         }
-        .up { grid-column: 2; }
+        .up { grid-column: 2; grid-row: 1; }
+        .left { grid-column: 1; grid-row: 2; }
         .down { grid-column: 2; grid-row: 2; }
-        .left { grid-column: 1; grid-row: 1; }
-        .right { grid-column: 3; grid-row: 1; }
+        .right { grid-column: 3; grid-row: 2; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <div class="logo">PAIHO <i>Elite</i></div>
-        <div class="stats">
+        <div class="logo">PAIHO <span>ELITE</span></div>
+        <div class="status-row">
             <div class="pill">SCORE: <b id="score">0</b></div>
             <div class="pill">ACTION: <b id="action" style="color:var(--paiho-red)">READY</b></div>
         </div>
@@ -79,10 +78,10 @@
     </div>
 
     <div class="controls">
-        <button class="btn left" onclick="move(-1,0)">◀</button>
-        <button class="btn up" onclick="move(0,-1)">▲</button>
-        <button class="btn right" onclick="move(1,0)">▶</button>
-        <button class="btn down" onclick="move(0,1)">▼</button>
+        <button class="btn up" onclick="handleControl(0,-1)">▲</button>
+        <button class="btn left" onclick="handleControl(-1,0)">◀</button>
+        <button class="btn down" onclick="handleControl(0,1)">▼</button>
+        <button class="btn right" onclick="handleControl(1,0)">▶</button>
     </div>
 
 <script>
@@ -91,35 +90,39 @@
     const scoreEl = document.getElementById("score");
     const actionEl = document.getElementById("action");
 
-    const size = Math.min(window.innerWidth * 0.9, window.innerHeight * 0.5);
+    const size = 800; 
     canvas.width = size; canvas.height = size;
-    const grid = 14, ts = canvas.width / grid;
+    const grid = 12, ts = size / grid;
 
-    let snake = [{x: 7, y: 10}, {x: 7, y: 11}, {x: 7, y: 12}];
-    let eyelet = {x: 7, y: 3};
+    let snake = [{x: 6, y: 8}, {x: 6, y: 9}, {x: 6, y: 10}];
+    let eyelet = {x: 6, y: 3};
     let dx = 0, dy = -1, score = 0, steps = 0;
     let particles = [];
     let lastTime = 0;
 
-    // 誇大動態變數
-    let fxScale = 1, fxBlur = 0, fxAlpha = 1;
-
-    function move(x, y) {
+    function handleControl(x, y) {
         if ((x === -dx && x !== 0) || (y === -dy && y !== 0)) return;
         dx = x; dy = y;
     }
 
-    function spawnFX(x, y, type) {
-        for(let i=0; i<30; i++) {
+    function createExplosion(x, y, type) {
+        // 誇張的粒子數量
+        const count = type === 'in' ? 40 : 80;
+        for(let i=0; i<count; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const force = type === 'in' ? 60 : 2;
+            const velocity = type === 'in' ? 0.5 : (Math.random() * 15 + 5);
+            const dist = type === 'in' ? 120 : 0;
             particles.push({
-                x: x + (type === 'in' ? Math.cos(angle) * force : 0),
-                y: y + (type === 'in' ? Math.sin(angle) * force : 0),
-                vx: type === 'in' ? 0 : (Math.random() - 0.5) * 15,
-                vy: type === 'in' ? 0 : (Math.random() - 0.5) * 15,
-                tx: x, ty: y, life: 1, type: type,
-                color: Math.random() > 0.5 ? '#e60012' : '#ffffff'
+                x: x + Math.cos(angle) * dist,
+                y: y + Math.sin(angle) * dist,
+                vx: type === 'in' ? 0 : Math.cos(angle) * velocity,
+                vy: type === 'in' ? 0 : Math.sin(angle) * velocity,
+                tx: x, ty: y,
+                life: 1.0,
+                decay: Math.random() * 0.02 + 0.02,
+                size: Math.random() * 8 + 2,
+                color: Math.random() > 0.3 ? '#e60012' : '#ffeb3b', // 紅色加一點火花黃
+                type: type
             });
         }
     }
@@ -132,84 +135,95 @@
             score++; steps++;
             scoreEl.innerText = score;
             const type = steps % 2 === 1 ? 'in' : 'out';
-            actionEl.innerText = type === 'in' ? "鑽入 ↓" : "鑽出 ↑";
-            
-            // 設置誇張視覺
-            if (type === 'in') { fxScale = 0.3; fxBlur = 8; fxAlpha = 0.3; }
-            else { fxScale = 2.2; fxBlur = 0; fxAlpha = 1; }
-            
-            spawnFX(eyelet.x * ts + ts/2, eyelet.y * ts + ts/2, type);
+            actionEl.innerText = type === 'in' ? "ZOOM IN ↓" : "EXPLODE ↑";
+            createExplosion(eyelet.x * ts + ts/2, eyelet.y * ts + ts/2, type);
             eyelet = {x: Math.floor(Math.random()*grid), y: Math.floor(Math.random()*grid)};
-            
-            canvas.style.transform = "scale(1.1) rotate(2deg)";
-            setTimeout(() => canvas.style.transform = "scale(1) rotate(0deg)", 150);
         } else {
             snake.pop();
-            fxScale += (1 - fxScale) * 0.2;
-            fxBlur += (0 - fxBlur) * 0.2;
-            fxAlpha += (1 - fxAlpha) * 0.2;
         }
         snake.unshift(head);
 
         particles.forEach((p, i) => {
-            if (p.type === 'in') { p.x += (p.tx - p.x) * 0.2; p.y += (p.ty - p.y) * 0.2; }
-            else { p.x += p.vx; p.y += p.vy; }
-            p.life -= 0.04;
+            if (p.type === 'in') {
+                p.x += (p.tx - p.x) * 0.15; p.y += (p.ty - p.y) * 0.15;
+            } else {
+                p.x += p.vx; p.y += p.vy;
+                p.vx *= 0.96; p.vy *= 0.96; // 阻力
+            }
+            p.life -= p.decay;
             if (p.life <= 0) particles.splice(i, 1);
         });
     }
 
     function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // 背景格線網布感
+        ctx.fillStyle = "#2c3e50"; ctx.fillRect(0,0,size,size);
+        ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1;
+        for(let i=0; i<=grid; i++) {
+            ctx.beginPath(); ctx.moveTo(i*ts, 0); ctx.lineTo(i*ts, size); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i*ts); ctx.lineTo(size, i*ts); ctx.stroke();
+        }
 
-        // 1. 畫鞋眼孔 (金屬 3D 感)
+        // 3D 金屬鞋眼孔
         const ex = eyelet.x * ts + ts/2, ey = eyelet.y * ts + ts/2;
-        ctx.shadowBlur = 15; ctx.shadowColor = "black";
-        ctx.fillStyle = "#111"; ctx.beginPath(); ctx.arc(ex, ey, ts/2, 0, 7); ctx.fill();
-        ctx.strokeStyle = "#d4af37"; ctx.lineWidth = 4; ctx.stroke();
-        ctx.shadowBlur = 0;
+        ctx.save();
+        ctx.shadowBlur = 15; ctx.shadowColor = "rgba(0,0,0,0.8)";
+        let g = ctx.createRadialGradient(ex-5, ey-5, 5, ex, ey, ts/2);
+        g.addColorStop(0, "#f1c40f"); g.addColorStop(0.5, "#d4af37"); g.addColorStop(1, "#2c3e50");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ex, ey, ts/2, 0, 7); ctx.fill();
+        ctx.fillStyle = "#000"; ctx.beginPath(); ctx.arc(ex, ey, ts/3, 0, 7); ctx.fill();
+        ctx.restore();
 
-        // 2. 畫鞋帶 (Snake)
+        // 3D 質感織帶 (Snake)
         snake.forEach((p, i) => {
-            ctx.save();
             const isHead = i === 0;
-            const s = isHead ? fxScale : 1;
-            ctx.filter = isHead ? `blur(${fxBlur}px)` : 'none';
-            ctx.globalAlpha = isHead ? fxAlpha : 1;
-            
+            ctx.save();
             ctx.translate(p.x * ts + ts/2, p.y * ts + ts/2);
-            ctx.scale(s, s);
-
-            // 鞋帶質感 (漸層+紋理)
-            let g = ctx.createLinearGradient(-ts/2, -ts/2, ts/2, ts/2);
-            g.addColorStop(0, "#e60012"); g.addColorStop(1, "#80000a");
-            ctx.fillStyle = g;
-            ctx.beginPath(); ctx.roundRect(-ts/2+1, -ts/2+1, ts-2, ts-2, 6); ctx.fill();
             
-            // 織帶斜紋
-            ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 2;
-            for(let j=-ts; j<ts; j+=5) {
+            if (isHead && score > 0) {
+                const s = (steps % 2 === 1) ? 0.35 : 2.2;
+                ctx.scale(s, s);
+                if (steps % 2 === 1) ctx.filter = "blur(5px)";
+            }
+
+            // 實體厚度投影
+            ctx.shadowBlur = 12; ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowOffsetY = 6;
+
+            // 百和紅編織漸層
+            let laceGrad = ctx.createLinearGradient(-ts/2, -ts/2, ts/2, ts/2);
+            laceGrad.addColorStop(0, "#ff1e1e"); laceGrad.addColorStop(1, "#8b0000");
+            ctx.fillStyle = laceGrad;
+            ctx.beginPath(); ctx.roundRect(-ts/2+3, -ts/2+3, ts-6, ts-6, 10); ctx.fill();
+            
+            // 強化編織斜紋
+            ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.lineWidth = 3;
+            for(let j=-ts; j<ts; j+=6) {
                 ctx.beginPath(); ctx.moveTo(j, -ts/2); ctx.lineTo(j+ts, ts/2); ctx.stroke();
             }
             ctx.restore();
         });
 
-        // 3. 畫粒子
+        // 螢光發光粒子
+        ctx.globalCompositeOperation = 'screen';
         particles.forEach(p => {
-            ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
-            ctx.beginPath(); ctx.arc(p.x, p.y, 4 * p.life, 0, 7); ctx.fill();
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, 7); ctx.fill();
+            // 核心亮點
+            ctx.fillStyle = "#fff";
+            ctx.beginPath(); ctx.arc(p.x, p.y, (p.size/2) * p.life, 0, 7); ctx.fill();
         });
-        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
     }
 
-    function gameLoop(now) {
+    function gameLoop(t) {
         requestAnimationFrame(gameLoop);
-        if (now - lastTime < 180) return;
-        lastTime = now;
+        if (t - lastTime < 170) return;
+        lastTime = t;
         
         const h = snake[0];
         if (h.x<0 || h.x>=grid || h.y<0 || h.y>=grid || snake.slice(1).some(p=>p.x===h.x && p.y===h.y)) {
-            alert("撞牆啦！穿孔數: " + score);
+            alert("PAIHO CHALLENGE ENDED\nScore: " + score);
             location.reload();
         } else { update(); draw(); }
     }
