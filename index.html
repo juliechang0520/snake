@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Paiho Shoelace Snake</title>
+    <title>Paiho Shoelace Elite</title>
     <style>
         :root {
             --paiho-red: #e60012;
-            --paiho-black: #1a1a1a;
+            --paiho-dark-red: #80000a;
+            --paiho-light-red: #ff4d4d;
+            --paiho-black: #121212;
             --paiho-white: #ffffff;
-            --bg-gray: #f8f8f8;
+            --glass: rgba(255, 255, 255, 0.1);
         }
+
         body {
             display: flex;
             flex-direction: column;
@@ -19,225 +22,287 @@
             height: 100vh;
             margin: 0;
             background-color: var(--paiho-black);
-            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            font-family: -apple-system, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+            color: var(--paiho-white);
             overflow: hidden;
         }
-        .header {
-            padding: 20px 0 10px;
-            text-align: center;
+
+        /* 頂部 App Bar 質感 */
+        .app-bar {
             width: 100%;
-            background: var(--paiho-white);
-            border-bottom: 4px solid var(--paiho-red);
+            padding: 20px 0;
+            background: linear-gradient(180deg, #1f1f1f 0%, var(--paiho-black) 100%);
+            text-align: center;
+            border-bottom: 2px solid var(--paiho-red);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
-        .brand-name {
-            color: var(--paiho-black);
-            font-size: 22px;
+
+        .brand {
+            font-size: 26px;
             font-weight: 900;
-            letter-spacing: 2px;
+            letter-spacing: 4px;
+            text-shadow: 0 0 10px rgba(230, 0, 18, 0.3);
         }
-        .brand-name span { color: var(--paiho-red); }
-        .status-row {
+
+        .brand span { color: var(--paiho-red); }
+
+        .stats-row {
             display: flex;
-            justify-content: space-around;
-            font-size: 15px;
-            font-weight: bold;
-            color: var(--paiho-black);
-            margin-top: 8px;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 12px;
         }
-        #game-container {
+
+        .badge {
+            background: var(--glass);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            border: 1px solid rgba(255,255,255,0.05);
+            backdrop-filter: blur(5px);
+        }
+
+        /* 遊戲畫布區域 */
+        #stage {
             flex-grow: 1;
             display: flex;
             align-items: center;
             justify-content: center;
             width: 100%;
-            padding: 15px;
-            box-sizing: border-box;
+            padding: 10px;
         }
+
         canvas {
             background-color: var(--paiho-white);
-            border: 2px solid var(--paiho-red);
-            border-radius: 4px;
-            box-shadow: 0 0 20px rgba(255,0,0,0.2);
-            max-width: 100%;
-            max-height: 100%;
+            border-radius: 16px;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.6);
+            transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        /* 操控區 */
-        .controls-wrapper {
+
+        /* 虛擬搖桿優化 */
+        .controller {
             padding-bottom: 40px;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-        }
-        .joypad {
             display: grid;
-            grid-template-columns: repeat(3, 65px);
-            grid-template-rows: repeat(2, 65px);
+            grid-template-columns: repeat(3, 75px);
             gap: 15px;
         }
-        .btn {
-            width: 65px;
-            height: 65px;
-            background-color: var(--paiho-red);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 28px;
+
+        .key {
+            width: 75px;
+            height: 75px;
+            background: var(--glass);
+            border: 2px solid var(--paiho-red);
+            border-radius: 20px;
+            color: var(--paiho-red);
+            font-size: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 5px 0 #b3000e;
-            transition: all 0.05s;
+            transition: all 0.1s;
             -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 4px 0 rgba(230, 0, 18, 0.2);
         }
-        .btn:active {
-            transform: translateY(3px);
-            box-shadow: 0 2px 0 #b3000e;
-        }
-        .up { grid-column: 2; grid-row: 1; }
-        .left { grid-column: 1; grid-row: 2; }
-        .down { grid-column: 2; grid-row: 2; }
-        .right { grid-column: 3; grid-row: 2; }
 
-        #direction-text { color: var(--paiho-red); border-bottom: 2px solid; }
+        .key:active {
+            background: var(--paiho-red);
+            color: white;
+            transform: translateY(4px) scale(0.95);
+            box-shadow: 0 0 0 transparent;
+        }
+
+        .up { grid-column: 2; }
+        .left { grid-column: 1; }
+        .down { grid-column: 2; }
+        .right { grid-column: 3; }
+
+        #mode-display {
+            font-weight: bold;
+            transition: all 0.3s;
+        }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div class="brand-name">PAIHO <span>TAIWAN</span></div>
-        <div class="status-row">
-            <div>穿孔得分: <span id="score">0</span></div>
-            <div>狀態: <span id="direction-text">準備穿孔</span></div>
+    <div class="app-bar">
+        <div class="brand">PAIHO <span>TAIWAN</span></div>
+        <div class="stats-row">
+            <div class="badge">SCORE: <span id="score">0</span></div>
+            <div class="badge">MODE: <span id="mode-display">READY</span></div>
         </div>
     </div>
 
-    <div id="game-container">
+    <div id="stage">
         <canvas id="gameCanvas"></canvas>
     </div>
 
-    <div class="controls-wrapper">
-        <div class="joypad">
-            <button class="btn up" onclick="setDir(0, -1)">↑</button>
-            <button class="btn left" onclick="setDir(-1, 0)">←</button>
-            <button class="btn down" onclick="setDir(0, 1)">↓</button>
-            <button class="btn right" onclick="setDir(1, 0)">→</button>
-        </div>
+    <div class="controller">
+        <button class="key up" onclick="handleInput(0, -1)">↑</button>
+        <button class="key left" onclick="handleInput(-1, 0)">←</button>
+        <button class="key down" onclick="handleInput(0, 1)">↓</button>
+        <button class="key right" onclick="handleInput(1, 0)">→</button>
     </div>
 
 <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
-    const scoreElement = document.getElementById("score");
-    const dirElement = document.getElementById("direction-text");
+    const scoreText = document.getElementById("score");
+    const modeText = document.getElementById("mode-display");
 
-    const container = document.getElementById("game-container");
-    const size = Math.min(container.clientWidth - 30, container.clientHeight - 30);
+    // 響應式螢幕適應
+    const size = Math.min(window.innerWidth * 0.9, window.innerHeight * 0.45);
     canvas.width = size;
     canvas.height = size;
 
-    const gridSize = 20;
-    const tileCount = Math.floor(canvas.width / gridSize);
-    const renderSize = canvas.width / tileCount;
+    const gridNum = 15;
+    const unit = canvas.width / gridNum;
 
-    let score = 0, dx = 0, dy = 0, holeCount = 0;
-    let snake = [{x: 10, y: 10}, {x: 10, y: 11}, {x: 10, y: 12}];
-    let food = {x: 5, y: 5};
-    let lastTime = 0;
-    const speed = 120; 
+    let snake = [{x: 7, y: 7}, {x: 7, y: 8}, {x: 7, y: 9}];
+    let eyelet = {x: 5, y: 5};
+    let moveX = 0, moveY = 0, points = 0, stepCount = 0;
+    let frameRate = 0;
+    const gameSpeed = 200; // 調整後的適中速度
 
-    function gameLoop(currentTime) {
-        window.requestAnimationFrame(gameLoop);
-        if (currentTime - lastTime < speed) return;
-        lastTime = currentTime;
+    // 動態視覺參數
+    let headScale = 1;
+    let headColor = "#e60012";
 
-        if (didGameEnd()) {
-            alert("遊戲結束！總穿孔數: " + score);
-            resetGame();
+    function loop(now) {
+        requestAnimationFrame(loop);
+        if (now - frameRate < gameSpeed) return;
+        frameRate = now;
+
+        if (isDead()) {
+            alert("遊戲結束！穿孔得分：" + points);
+            restart();
             return;
         }
-        update();
-        draw();
+        process();
+        render();
     }
 
-    function update() {
-        if (dx === 0 && dy === 0) return;
-        const head = {x: snake[0].x + dx, y: snake[0].y + dy};
-        snake.unshift(head);
+    function process() {
+        if (moveX === 0 && moveY === 0) return;
 
-        if (snake[0].x === food.x && snake[0].y === food.y) {
-            score++;
-            holeCount++;
-            scoreElement.innerHTML = score;
-            dirElement.innerHTML = (holeCount % 2 === 1) ? "由上往下 ↓" : "由下往上 ↑";
-            createFood();
+        const nextHead = {x: snake[0].x + moveX, y: snake[0].y + moveY};
+        snake.unshift(nextHead);
+
+        if (nextHead.x === eyelet.x && nextHead.y === eyelet.y) {
+            points++;
+            stepCount++;
+            scoreText.innerText = points;
+            
+            // 明確的動態區分邏輯
+            if (stepCount % 2 === 1) {
+                // 由上往下：鑽入感（變小、變深）
+                modeText.innerText = "TOP-DOWN ↓";
+                modeText.style.color = "#ff8080";
+                headScale = 0.6;
+                headColor = "var(--paiho-dark-red)";
+            } else {
+                // 由下往上：鑽出感（變大、變亮）
+                modeText.innerText = "BOTTOM-UP ↑";
+                modeText.style.color = "var(--paiho-light-red)";
+                headScale = 1.4;
+                headColor = "var(--paiho-light-red)";
+            }
+
+            // 畫布震動特效
+            canvas.style.transform = "scale(1.03)";
+            setTimeout(() => canvas.style.transform = "scale(1)", 100);
+            
+            dropEyelet();
         } else {
             snake.pop();
+            // 平時恢復標準鞋帶狀態
+            headScale = 1;
+            headColor = "var(--paiho-red)";
         }
     }
 
-    function draw() {
-        // 背景格線
-        ctx.fillStyle = "white";
+    function render() {
+        // 清除並畫背景
+        ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
+
+        // 畫輕微背景格線
         ctx.strokeStyle = "#f0f0f0";
-        for(let i=0; i<=tileCount; i++) {
-            ctx.beginPath(); ctx.moveTo(i*renderSize, 0); ctx.lineTo(i*renderSize, canvas.height); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, i*renderSize); ctx.lineTo(canvas.width, i*renderSize); ctx.stroke();
+        ctx.lineWidth = 1;
+        for(let i=0; i<=gridNum; i++) {
+            ctx.beginPath(); ctx.moveTo(i*unit, 0); ctx.lineTo(i*unit, canvas.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i*unit); ctx.lineTo(canvas.width, i*unit); ctx.stroke();
         }
 
-        // 畫鞋眼孔 (Eyelet)
-        ctx.fillStyle = "#1a1a1a";
+        // 畫鞋眼孔 (Eyelet) - 金屬立體感
+        const ex = eyelet.x * unit + unit/2;
+        const ey = eyelet.y * unit + unit/2;
+        let ring = ctx.createRadialGradient(ex-2, ey-2, 1, ex, ey, unit/2.5);
+        ring.addColorStop(0, "#444");
+        ring.addColorStop(1, "#000");
+        ctx.fillStyle = ring;
         ctx.beginPath();
-        ctx.arc(food.x * renderSize + renderSize/2, food.y * renderSize + renderSize/2, renderSize/3, 0, Math.PI * 2);
+        ctx.arc(ex, ey, unit/2.5, 0, Math.PI*2);
         ctx.fill();
-        ctx.strokeStyle = "#ccc";
-        ctx.lineWidth = 1;
-        ctx.stroke();
 
         // 畫鞋帶 (Shoelace Snake)
-        snake.forEach((part, i) => {
-            // 使用百和紅，頭部深紅
-            ctx.fillStyle = (i === 0) ? "#b3000e" : "#e60012";
+        snake.forEach((node, idx) => {
+            const isHead = idx === 0;
+            const s = isHead ? headScale : 1;
+            const color = isHead ? headColor : "var(--paiho-red)";
+            const gap = (unit * (1 - s)) / 2;
+
+            // 建立鞋帶立體漸層
+            let grad = ctx.createLinearGradient(node.x*unit, node.y*unit, (node.x+1)*unit, (node.y+1)*unit);
+            grad.addColorStop(0, color);
+            grad.addColorStop(1, isHead ? "#600000" : "var(--paiho-dark-red)");
+
+            ctx.fillStyle = grad;
             ctx.beginPath();
-            ctx.roundRect(part.x * renderSize + 1, part.y * renderSize + 1, renderSize - 2, renderSize - 2, 4);
+            ctx.roundRect(
+                node.x*unit + 1 + gap, 
+                node.y*unit + 1 + gap, 
+                (unit-2) * s, 
+                (unit-2) * s, 
+                isHead ? 8 : 4
+            );
             ctx.fill();
-            
-            // 模擬鞋帶邊緣
-            if (i > 0) {
-                ctx.strokeStyle = "rgba(0,0,0,0.1)";
-                ctx.stroke();
-            }
+
+            // 增加織帶表面紋理
+            ctx.strokeStyle = "rgba(255,255,255,0.1)";
+            ctx.stroke();
         });
     }
 
-    function setDir(x, y) {
-        if ((x === -dx && x !== 0) || (y === -dy && y !== 0)) return;
-        dx = x; dy = y;
+    function handleInput(x, y) {
+        if ((x === -moveX && x !== 0) || (y === -moveY && y !== 0)) return;
+        moveX = x; moveY = y;
     }
 
-    function didGameEnd() {
-        for (let i = 4; i < snake.length; i++) {
-            if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) return true;
+    function isDead() {
+        const h = snake[0];
+        if (h.x<0 || h.x>=gridNum || h.y<0 || h.y>=gridNum) return true;
+        for (let i=1; i<snake.length; i++) {
+            if (snake[i].x === h.x && snake[i].y === h.y) return true;
         }
-        return snake[0].x < 0 || snake[0].x >= tileCount || snake[0].y < 0 || snake[0].y >= tileCount;
+        return false;
     }
 
-    function createFood() {
-        food.x = Math.floor(Math.random() * tileCount);
-        food.y = Math.floor(Math.random() * tileCount);
-        snake.forEach(part => { if(part.x === food.x && part.y === food.y) createFood(); });
+    function dropEyelet() {
+        eyelet = {x: Math.floor(Math.random()*gridNum), y: Math.floor(Math.random()*gridNum)};
+        // 避免生在蛇身上
+        if (snake.some(p => p.x === eyelet.x && p.y === eyelet.y)) dropEyelet();
     }
 
-    function resetGame() {
-        score = 0; holeCount = 0; dx = 0; dy = 0;
-        snake = [{x: 10, y: 10}, {x: 10, y: 11}, {x: 10, y: 12}];
-        dirElement.innerHTML = "準備穿孔";
-        createFood();
+    function restart() {
+        points = 0; moveX = 0; moveY = 0; stepCount = 0;
+        snake = [{x: 7, y: 7}, {x: 7, y: 8}, {x: 7, y: 9}];
+        scoreText.innerText = "0";
+        modeText.innerText = "READY";
+        modeText.style.color = "var(--paiho-white)";
+        dropEyelet();
     }
 
-    createFood();
-    window.requestAnimationFrame(gameLoop);
+    dropEyelet();
+    requestAnimationFrame(loop);
 </script>
 </body>
 </html>
