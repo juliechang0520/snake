@@ -3,110 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鞋帶穿孔邏輯遊戲</title>
+    <title>帆布平底鞋質感：穿孔遊戲</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #121212; display: flex; flex-col; align-items: center; justify-content: center; min-h-screen; color: white; }
-        canvas { background: #222; border: 4px solid #444; border-radius: 12px; box-shadow: 0 0 40px rgba(0,0,0,0.8); }
-        .ui-panel { margin-bottom: 20px; text-align: center; }
-        .mode-indicator { padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; }
-        .mode-player { background: #ef4444; color: white; }
-        .mode-auto { background: #3b82f6; color: white; }
+        body { background-color: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
+        #game-container { position: relative; }
+        canvas { border: 12px solid #1e293b; border-radius: 30px; box-shadow: 0 35px 60px -15px rgba(0, 0, 0, 0.7); }
+        
+        /* 遊戲結束畫面樣式 */
+        #game-over {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.95); display: none;
+            flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 18px; z-index: 50; backdrop-filter: blur(8px);
+        }
+        .mode-tag { padding: 8px 20px; border-radius: 99px; font-weight: 800; font-size: 0.8rem; transition: all 0.3s; text-transform: uppercase; letter-spacing: 0.1em; }
+        .player-active { background: #ef4444; color: white; box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
+        .auto-active { background: #3b82f6; color: white; animation: pulse 0.8s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); opacity: 0.8; } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
 
-    <div class="ui-panel">
-        <div class="text-4xl font-black mb-2 italic">HOLES: <span id="score">0</span></div>
-        <div id="status" class="mode-indicator mode-player">玩家控制中</div>
+    <div class="mb-6 text-center">
+        <div id="statusTag" class="mode-tag player-active mb-4">玩家控制：地表模式</div>
+        <div class="text-slate-500 text-xs font-bold tracking-[0.5em] uppercase mb-1">Canvas Score</div>
+        <div class="text-white text-7xl font-black italic tracking-tighter" id="score">0</div>
     </div>
 
-    <canvas id="gameCanvas" width="600" height="600"></canvas>
+    <div id="game-container">
+        <div id="game-over">
+            <h1 class="text-white text-6xl font-black mb-2 tracking-tighter">GAME OVER</h1>
+            <p class="text-slate-400 text-lg mb-8">鞋帶在第 <span id="final-score" class="text-red-500 font-bold">0</span> 個孔斷了</p>
+            <button onclick="location.reload()" class="px-10 py-4 bg-white text-slate-900 font-black rounded-full transition-all transform hover:scale-110 active:scale-95 shadow-2xl uppercase tracking-widest">
+                Restart Game
+            </button>
+        </div>
+        
+        <canvas id="laceCanvas" width="640" height="640"></canvas>
+    </div>
 
     <script>
-        const canvas = document.getElementById("gameCanvas");
+        const canvas = document.getElementById("laceCanvas");
         const ctx = canvas.getContext("2d");
-        const scoreElement = document.getElementById("score");
-        const statusElement = document.getElementById("status");
+        const scoreEl = document.getElementById("score");
+        const statusEl = document.getElementById("statusTag");
 
-        // 參數設定 (2倍大)
         const box = 40; 
-        const eyeletRadius = 18;
-        const laceWidth = 32;
+        const eyeletR = 20;
         let score = 0;
-        let gameSpeed = 150;
-
-        // 狀態管理
+        
         let isAutoMode = false;
-        let snake = [{ x: 7 * box, y: 7 * box }];
+        let isGameOver = false;
+        let snake = [{ x: 8 * box, y: 8 * box }];
         let d = "RIGHT";
-        let targetHole = { x: 3 * box, y: 3 * box };
-        let pathHistory = []; // 紀錄地表上的路徑點用於碰撞判定
+        let targetHole = { x: 4 * box, y: 4 * box };
+        let pathHistory = [];
 
-        // 1. 繪製金屬鞋孔 (Eyelet)
-        function drawEyelet(x, y) {
-            const cx = x + box/2;
-            const cy = y + box/2;
+        // 🎨 繪製帆布平底鞋布料質感
+        function drawCanvasTexture() {
+            // 基底顏色：經典帆布藍
+            ctx.fillStyle = "#253347"; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             ctx.save();
-            let grad = ctx.createRadialGradient(cx-5, cy-5, 2, cx, cy, eyeletRadius);
-            grad.addColorStop(0, "#ffffff");
-            grad.addColorStop(0.5, "#999");
-            grad.addColorStop(1, "#333");
-            
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(cx, cy, eyeletRadius, 0, Math.PI * 2);
-            ctx.fill();
-
-            // 孔洞中心
-            ctx.fillStyle = "#111";
-            ctx.beginPath();
-            ctx.arc(cx, cy, eyeletRadius - 6, 0, Math.PI * 2);
-            ctx.fill();
+            // 繪製細微的編織紋理
+            for(let i=0; i<canvas.width; i+=3) {
+                // 經線
+                ctx.beginPath();
+                ctx.strokeStyle = i % 6 === 0 ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.1)";
+                ctx.lineWidth = 1;
+                ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+                
+                // 緯線
+                ctx.beginPath();
+                ctx.moveTo(0, i); ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+            // 加入雜色噪點增加真實感
+            for (let j = 0; j < 500; j++) {
+                ctx.fillStyle = "rgba(255,255,255,0.02)";
+                ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 1, 1);
+            }
             ctx.restore();
         }
 
-        // 2. 繪製垂直水平編織鞋帶 (Woven Lace)
+        // 👟 繪製鞋帶 (垂直/水平織紋)
         function drawLace(x, y, opacity = 1) {
             ctx.save();
             ctx.globalAlpha = opacity;
             
-            // 白色基底
-            ctx.fillStyle = "#eee";
+            // 鞋帶主體
+            ctx.fillStyle = "#ffffff";
+            if (!isAutoMode) {
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = "rgba(0,0,0,0.6)";
+            }
             ctx.beginPath();
-            ctx.roundRect(x + 4, y + 4, box - 8, box - 8, 4);
+            ctx.roundRect(x+2, y+2, box-4, box-4, 4);
             ctx.fill();
 
-            // 垂直水平編織紋 (十字)
-            ctx.strokeStyle = "#d32f2f";
-            ctx.lineWidth = 4;
-            
-            // 水平線
-            ctx.beginPath();
-            ctx.moveTo(x + 4, y + box/2);
-            ctx.lineTo(x + box - 4, y + box/2);
-            ctx.stroke();
+            // 紅色垂直水平編織紋
+            ctx.strokeStyle = "#e11d48";
+            ctx.lineWidth = 5;
+            // 水平
+            ctx.beginPath(); ctx.moveTo(x + 5, y + box/2); ctx.lineTo(x + box - 5, y + box/2); ctx.stroke();
+            // 垂直
+            ctx.beginPath(); ctx.moveTo(x + box/2, y + 5); ctx.lineTo(x + box/2, y + box - 5); ctx.stroke();
+            ctx.restore();
+        }
 
-            // 垂直線
-            ctx.beginPath();
-            ctx.moveTo(x + box/2, y + 4);
-            ctx.lineTo(x + box/2, y + box - 4);
-            ctx.stroke();
+        // 🔘 繪製金屬鞋孔 (Eyelet)
+        function drawEyelet(x, y) {
+            const cx = x + box/2, cy = y + box/2;
+            ctx.save();
+            // 金屬環立體感
+            let g = ctx.createRadialGradient(cx-6, cy-6, 2, cx, cy, eyeletR);
+            g.addColorStop(0, "#f8fafc"); // 金屬亮點
+            g.addColorStop(0.6, "#94a3b8"); 
+            g.addColorStop(1, "#1e293b"); // 邊緣陰影
             
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(cx, cy, eyeletR, 0, Math.PI*2); ctx.fill();
+            
+            // 內圈深度
+            ctx.fillStyle = "#0f172a";
+            ctx.beginPath(); ctx.arc(cx, cy, eyeletR-8, 0, Math.PI*2); ctx.fill();
             ctx.restore();
         }
 
         function changeDir(newDir) {
-            if (isAutoMode) return; // 自動模式禁用控制
-            if (newDir == "LEFT" && d != "RIGHT") d = "LEFT";
-            else if (newDir == "UP" && d != "DOWN") d = "UP";
-            else if (newDir == "RIGHT" && d != "LEFT") d = "RIGHT";
-            else if (newDir == "DOWN" && d != "UP") d = "DOWN";
+            if (isAutoMode || isGameOver) return;
+            if (newDir === "LEFT" && d !== "RIGHT") d = "LEFT";
+            else if (newDir === "UP" && d !== "DOWN") d = "UP";
+            else if (newDir === "RIGHT" && d !== "LEFT") d = "RIGHT";
+            else if (newDir === "DOWN" && d !== "UP") d = "DOWN";
         }
 
-        window.addEventListener("keydown", (e) => {
-            if (e.keyCode == 37) changeDir("LEFT");
-            if (e.keyCode == 38) changeDir("UP");
-            if (e.keyCode == 39) changeDir("RIGHT");
-            if (e.keyCode == 40) changeDir("DOWN
+        window.addEventListener("keydown", e => {
+            if (e.keyCode === 37) changeDir("LEFT");
+            if (e.keyCode === 38) changeDir("UP");
+            if (e.keyCode === 39) changeDir("RIGHT");
+            if (e.keyCode === 40) changeDir("DOWN");
+        });
+
+        function update() {
+            if (isGameOver) return;
+            
+            let hX = snake[0].x, hY = snake[0].y;
+
+            if (isAutoMode) {
+                // 自動模式：移動到隨機下一個孔洞
+                if (hX < targetHole.x) hX += box;
+                else if (hX > targetHole.x) hX -= box;
+                else if (hY < targetHole.y) hY += box;
+                else if (hY > targetHole.y) hY -= box;
+
+                if (hX === targetHole.x && hY === targetHole.y) {
+                    isAutoMode = false;
+                    statusEl.innerText = "玩家控制：地表模式";
+                    statusEl.className = "mode-tag player-active";
+                    targetHole = {
+                        x: Math.floor(Math.random() * (canvas.width/box)) * box,
+                        y: Math.floor(Math.random() * (canvas.height/box)) * box
+                    };
+                }
+            } else {
+                if (d === "LEFT") hX -= box; if (d === "UP") hY -= box;
+                if (d === "RIGHT") hX += box; if (d === "DOWN") hY += box;
+
+                // 邊界檢查
+                if (hX < 0 || hX >= canvas.width || hY < 0 || hY >= canvas.height) return endGame();
+
+                // 自我碰撞檢查
+                for (let p of pathHistory) {
+                    if (hX === p.x && hY === p.y) return endGame();
+                }
+
+                // 吃到目標孔洞
+                if (hX === targetHole.x && hY === targetHole.y) {
+                    score++; scoreEl.innerText = score;
+                    isAutoMode = true;
+                    statusEl.innerText = "地下穿孔模式 (免疫碰撞)";
+                    statusEl.className = "mode-tag auto-active";
+                    pathHistory = []; 
+                } else {
+                    pathHistory.push({x: hX, y: hY});
+                    if (pathHistory.length > 12) pathHistory.shift();
+                }
+            }
+            snake.unshift({x: hX, y: hY});
+            if (snake.length > 15) snake.pop();
+        }
+
+        function draw() {
+            drawCanvasTexture();
+            drawEyelet(targetHole.x, targetHole.y);
+            snake.forEach((s, i) => drawLace(s.x, s.y, isAutoMode ? 0.35 : 1));
+        }
+
+        function endGame() {
+            isGameOver = true;
+            document.getElementById("game-over").style.display = "flex";
+            document.getElementById("final-score").innerText = score;
+        }
+
+        function loop() {
+            update();
+            draw();
+            // 自動模式快 4 倍 (50ms vs 200ms)
+            let currentSpeed = isAutoMode ? 50 : 200;
+            setTimeout(loop, currentSpeed);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
