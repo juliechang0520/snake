@@ -5,13 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>PAIHO 3D Snake</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; overflow: hidden; -webkit-user-select: none; touch-action: none; }
+        body { font-family: sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
         #root { height: 100vh; display: flex; flex-direction: column; }
     </style>
 </head>
@@ -19,129 +18,75 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const React = window.React;
-        const { useState, useRef, useCallback, useEffect, useImperativeHandle, forwardRef } = React;
-        const ReactDOM = window.ReactDOM;
-        const THREE = window.THREE;
+        const { useState, useRef, useEffect, forwardRef, useImperativeHandle } = React;
 
-        const COLORS = { PAIHO_RED: '#D31A24', GOLD: '#D4AF37', DARK_BG: '#F1F5F9', GROUND: '#FFFFFF', GRID: '#CBD5E1', HOLE_INNER: '#0F172A', METAL_GOLD: '#F59E0B', CHROME: '#94A3B8' };
-        const ROPE_TEXTURE_URL = 'https://material.paiho.com/upload/BRD2147-J01F2.jpg';
-        const GAME_CONFIG = { GRID_SIZE: 2.0, INITIAL_SEGMENTS: 80, MAX_SEGMENTS: 500, SEGMENT_LENGTH: 0.1, ROPE_RADIUS: 0.8, ROPE_THICKNESS: 0.15, MOVE_SPEED: 0.22, AUTO_SPEED: 0.45, THRESHOLD_DISTANCE: 1.0, EYELET_RADIUS: 1.4, BOUNDS: 24, UPPER_Y: 0.6, LOWER_Y: -2.5, GROWTH_AMOUNT: 40, AGLET_LENGTH: 2.5 };
+        const GameCanvas = forwardRef(({ onScoreChange }, ref) => {
+            const containerRef = useRef();
+            const stateRef = useRef({ pos: new THREE.Vector3(0, 0.6, 0), dir: new THREE.Vector3(0, 0, -1), history: [] });
 
-        const GameCanvas = forwardRef(({ onScoreChange, onGameOver }, ref) => {
-            const containerRef = useRef(null);
-            const rendererRef = useRef(null);
-            const ropeMeshRef = useRef(null);
-            const agletMeshRef = useRef(null);
-            const targetEyeletRef = useRef(null);
-            const exitEyeletRef = useRef(null);
-            const pathHistoryRef = useRef([]);
-            const stateRef = useRef({ status: 'PLAYER', targetPos: new THREE.Vector3(0, 0.6, 0), currentDir: new THREE.Vector3(0, 0, -1), nextDir: null, score: 0, activeSegments: 80, exitPos: new THREE.Vector3() });
-
-            const createEyelet = (isTarget) => {
-                const group = new THREE.Group();
-                const mat = new THREE.MeshStandardMaterial({ color: isTarget ? COLORS.GOLD : COLORS.CHROME, metalness: 1, roughness: 0.1 });
-                const torus = new THREE.Mesh(new THREE.TorusGeometry(1.3, 0.15, 16, 32), mat);
-                torus.rotation.x = Math.PI/2; torus.position.y = 0.2;
-                const cyl = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 0.4, 32), mat);
-                const hole = new THREE.Mesh(new THREE.CircleGeometry(1.2, 32), new THREE.MeshBasicMaterial({ color: COLORS.HOLE_INNER }));
-                hole.rotation.x = -Math.PI/2; hole.position.y = 0.05;
-                group.add(torus, cyl, hole);
-                return group;
-            };
-
-            const reset = () => {
-                const s = stateRef.current; s.status = 'PLAYER'; s.score = 0; s.activeSegments = 80;
-                s.targetPos.set(1, 0.6, 1); s.currentDir.set(0,0,-1);
-                pathHistoryRef.current = [];
-                for(let i=0; i<40; i++) pathHistoryRef.current.push(new THREE.Vector3(1, 0.6, 1 + i*0.1));
-                if(exitEyeletRef.current) exitEyeletRef.current.visible = false;
-                onScoreChange(0);
-            };
-
-            useImperativeHandle(ref, () => ({ setDirection: (x, z) => { if(stateRef.current.status==='PLAYER') stateRef.current.nextDir = new THREE.Vector3(x,0,-z).normalize(); }, reset }));
+            useImperativeHandle(ref, () => ({
+                setDirection: (x, z) => { stateRef.current.dir.set(x, 0, -z).normalize(); },
+                reset: () => { stateRef.current.pos.set(0, 0.6, 0); stateRef.current.history = []; }
+            }));
 
             useEffect(() => {
-                const scene = new THREE.Scene(); scene.background = new THREE.Color(COLORS.DARK_BG);
+                const scene = new THREE.Scene();
+                scene.background = new THREE.Color(0xf1f5f9);
+                const camera = new THREE.OrthographicCamera(-20, 20, 20, -20, 0.1, 1000);
+                camera.position.set(20, 20, 20); camera.lookAt(0, 0, 0);
+                
                 const renderer = new THREE.WebGLRenderer({ antialias: true });
                 renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
                 containerRef.current.appendChild(renderer.domElement);
-                
-                const camera = new THREE.OrthographicCamera(-35, 35, 35, -35, 0.1, 1000);
-                camera.position.set(0, 50, 0); camera.lookAt(0,0,0);
+
                 scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-                const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(10,20,10); scene.add(sun);
-                scene.add(new THREE.GridHelper(100, 50, COLORS.GRID, COLORS.GRID));
+                scene.add(new THREE.GridHelper(40, 20));
 
-                const loader = new THREE.TextureLoader();
-                const ropeMat = new THREE.MeshStandardMaterial({ color: COLORS.PAIHO_RED, map: loader.load(ROPE_TEXTURE_URL) });
-                ropeMeshRef.current = new THREE.Mesh(undefined, ropeMat); scene.add(ropeMeshRef.current);
+                // 蛇頭 (代表百和產品)
+                const head = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: 0xD31A24 }));
+                scene.add(head);
 
-                agletMeshRef.current = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 2.5), new THREE.MeshStandardMaterial({ color: COLORS.METAL_GOLD }));
-                scene.add(agletMeshRef.current);
-
-                targetEyeletRef.current = createEyelet(true); scene.add(targetEyeletRef.current);
-                exitEyeletRef.current = createEyelet(false); scene.add(exitEyeletRef.current);
-                
-                reset();
                 let rid;
-                const loop = () => {
-                    rid = requestAnimationFrame(loop);
-                    const s = stateRef.current; if(s.status==='OVER') { renderer.render(scene, camera); return; }
-                    const h = s.targetPos;
-                    if(s.status==='PLAYER') {
-                        if(s.nextDir) s.currentDir.lerp(s.nextDir, 0.2);
-                        h.add(s.currentDir.clone().multiplyScalar(0.22));
-                    }
-                    if(pathHistoryRef.current[0].distanceTo(h) > 0.1) pathHistoryRef.current.unshift(h.clone());
-                    if(pathHistoryRef.current.length > 1000) pathHistoryRef.current.pop();
-
-                    if(ropeMeshRef.current && pathHistoryRef.current.length > 2) {
-                        const pts = pathHistoryRef.current.slice(0, s.activeSegments);
-                        if(pts.length > 2) {
-                            const old = ropeMeshRef.current.geometry;
-                            ropeMeshRef.current.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), Math.min(pts.length, 64), 0.8, 8, false);
-                            if(old) old.dispose();
-                        }
-                    }
+                const animate = () => {
+                    rid = requestAnimationFrame(animate);
+                    const s = stateRef.current;
+                    s.pos.add(s.dir.clone().multiplyScalar(0.2));
+                    head.position.copy(s.pos);
                     renderer.render(scene, camera);
                 };
-                loop();
-                return () => { cancelAnimationFrame(rid); renderer.dispose(); };
+                animate();
+                return () => cancelAnimationFrame(rid);
             }, []);
-            return <div ref={containerRef} className="w-full h-full" />;
+
+            return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
         });
 
         const App = () => {
-            const [score, setScore] = useState(0);
-            const [isGameOver, setIsGameOver] = useState(false);
-            const gameRef = useRef(null);
-            const btn = (label, x, z, cls="") => (
-                <div className={`w-16 h-16 bg-slate-300 rounded-full flex items-center justify-center ${cls}`}>
-                    <button onPointerDown={() => gameRef.current?.setDirection(x,z)} className="w-12 h-12 bg-red-600 text-white rounded-full font-bold active:bg-red-800">{label}</button>
-                </div>
-            );
+            const gameRef = useRef();
+            const btnStyle = "w-16 h-16 bg-red-600 text-white rounded-full font-bold text-xl active:bg-red-800";
+            
             return (
-                <div className="flex flex-col h-screen">
-                    <header className="h-14 bg-white border-b flex items-center justify-between px-6 font-black text-xl">
-                        <span>PAIHO <span className="text-red-600">SNAKE</span></span>
-                        <span className="bg-slate-100 px-4 py-1 rounded-full">{score}</span>
+                <div className="flex flex-col h-full">
+                    <header className="p-4 bg-white shadow flex justify-between items-center">
+                        <h1 className="font-bold text-xl">PAIHO SNAKE</h1>
                     </header>
-                    <main className="flex-1 relative">
-                        <GameCanvas ref={gameRef} onScoreChange={setScore} onGameOver={() => setIsGameOver(true)} />
-                    </main>
-                    <div className="h-56 bg-slate-200 grid grid-cols-3 grid-rows-2 items-center justify-items-center p-4">
-                        {btn("▲", 0, 1, "col-start-2")}
-                        {btn("◀", -1, 0, "col-start-1 row-start-2")}
-                        {btn("▼", 0, -1, "col-start-2 row-start-2")}
-                        {btn("▶", 1, 0, "col-start-3 row-start-2")}
+                    <div className="flex-1 relative bg-slate-200">
+                        <GameCanvas ref={gameRef} />
+                    </div>
+                    <div className="p-8 bg-slate-300 grid grid-cols-3 gap-2 justify-items-center">
+                        <div />
+                        <button className={btnStyle} onPointerDown={() => gameRef.current.setDirection(0, 1)}>▲</button>
+                        <div />
+                        <button className={btnStyle} onPointerDown={() => gameRef.current.setDirection(-1, 0)}>◀</button>
+                        <button className={btnStyle} onPointerDown={() => gameRef.current.setDirection(0, -1)}>▼</button>
+                        <button className={btnStyle} onPointerDown={() => gameRef.current.setDirection(1, 0)}>▶</button>
                     </div>
                 </div>
             );
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        // React 17 的渲染方式，這在 GitHub Pages 最穩定
+        ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
 </html>
