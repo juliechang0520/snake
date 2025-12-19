@@ -3,31 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lace Ultra 3D - Premium Edition</title>
+    <title>精密穿梭：Lace 3D 邏輯修正版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { margin: 0; background-color: #020617; overflow: hidden; font-family: "Inter", "Microsoft JhengHei", sans-serif; }
-        
-        /* 毛玻璃 UI 介面 */
-        #ui { 
-            position: absolute; top: 30px; width: 100%; text-align: center; 
-            pointer-events: none; z-index: 10; color: white; 
-        }
+        body { margin: 0; background-color: #020617; overflow: hidden; font-family: sans-serif; }
+        #ui { position: absolute; top: 30px; width: 100%; text-align: center; pointer-events: none; z-index: 10; color: white; }
         .ui-container {
-            display: inline-block; padding: 15px 30px;
+            display: inline-block; padding: 12px 24px;
             background: rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 24px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
         }
-        .mode-tag { 
-            display: inline-block; padding: 4px 14px; border-radius: 99px; 
-            background: #ef4444; font-weight: 800; font-size: 0.75rem; 
-            letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; 
-            transition: all 0.4s ease;
-        }
-        .score-text { font-size: 3.5rem; font-weight: 900; line-height: 1; margin: 0; }
+        .mode-tag { display: inline-block; padding: 4px 12px; border-radius: 99px; background: #ef4444; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 5px; }
+        .score-text { font-size: 2.5rem; font-weight: 900; line-height: 1; margin: 0; }
     </style>
 </head>
 <body>
@@ -40,106 +29,71 @@
     </div>
 
     <script>
-        // --- 核心配置 ---
         const scene = new THREE.Scene();
-        const d = 4.5; // 相機縮小視野，增加精緻感
+        const d = 5; 
         const aspect = window.innerWidth / window.innerHeight;
         const camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
         camera.position.set(0, 50, 0); 
         camera.lookAt(0, 0, 0);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        // --- 質感光影 ---
-        const ambLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-        dirLight.position.set(3, 15, 3);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirLight.position.set(5, 15, 5);
         dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048; // 高解析度陰影
-        dirLight.shadow.mapSize.height = 2048;
         scene.add(dirLight);
 
-        // --- 網格參數 (縮小 50%, 80% 覆蓋) ---
+        // --- 核心比例參數 ---
         const gridSize = 0.5; 
         const laceWidth = gridSize * 0.8; 
-        const eyeletR = laceWidth / 2;
+        const eyeletR = laceWidth / 2; 
+        const offset = gridSize / 2; 
 
-        // --- 生成高質感帆布背景紋理 ---
-        function createCanvasTexture() {
-            const size = 128;
-            const canvas = document.createElement('canvas');
-            canvas.width = size; canvas.height = size;
-            const ctx = canvas.getContext('2d');
-            
-            // 基礎底色
-            ctx.fillStyle = '#1e293b'; 
-            ctx.fillRect(0, 0, size, size);
-            
-            // 加入噪點紋理 (模擬布料感)
-            for (let i = 0; i < 2000; i++) {
-                ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.05})`;
-                ctx.fillRect(Math.random()*size, Math.random()*size, 1, 1);
-            }
-            
-            // 繪製格線
-            ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(0, 0, size, size);
-            
-            const tex = new THREE.CanvasTexture(canvas);
-            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-            tex.repeat.set(100 / gridSize, 100 / gridSize);
-            return tex;
-        }
-
-        const plane = new THREE.Mesh(
-            new THREE.PlaneGeometry(100, 100), 
-            new THREE.MeshStandardMaterial({ map: createCanvasTexture(), roughness: 0.9 })
-        );
+        // --- 背景網格 ---
+        const planeSize = 100;
+        const textureCanvas = document.createElement('canvas');
+        textureCanvas.width = 128; textureCanvas.height = 128;
+        const tCtx = textureCanvas.getContext('2d');
+        tCtx.fillStyle = '#1e293b'; tCtx.fillRect(0, 0, 128, 128);
+        tCtx.strokeStyle = 'rgba(255,255,255,0.1)'; tCtx.lineWidth = 2;
+        tCtx.strokeRect(0, 0, 128, 128);
+        const canvasTexture = new THREE.CanvasTexture(textureCanvas);
+        canvasTexture.wrapS = canvasTexture.wrapT = THREE.RepeatWrapping;
+        canvasTexture.repeat.set(planeSize / gridSize, planeSize / gridSize);
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(planeSize, planeSize), new THREE.MeshStandardMaterial({ map: canvasTexture }));
         plane.rotation.x = -Math.PI / 2;
-        plane.receiveShadow = true;
         scene.add(plane);
 
-        // --- 遊戲邏輯 ---
+        // --- 材質定義 ---
+        const laceMat = new THREE.MeshStandardMaterial({ color: 0xcc0000, roughness: 0.5 });
+        const eyeletMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 1.0, roughness: 0.15 });
+        const holeInnerMat = new THREE.MeshBasicMaterial({ color: 0x0f172a }); // 深藍色孔內
+
         let score = 0;
         let isAutoMode = false;
         let snake = [{ x: 0, y: 0 }];
         let direction = { x: 1, y: 0 };
-        let startHolePos = null;
-        let targetHolePos = { x: gridSize * 4, y: gridSize * 2 }; 
+        let startHolePos = null; // 進入點
+        let targetHolePos = { x: gridSize * 4, y: gridSize * 2 }; // 出現點
+        
         let eyeletGroups = [];
         let laceMeshes = [];
 
-        // --- 高質感材質 ---
-        const laceMat = new THREE.MeshStandardMaterial({ 
-            color: 0xdf0000, roughness: 0.5, metalness: 0.1 
-        });
-        const eyeletMat = new THREE.MeshStandardMaterial({ 
-            color: 0xcbd5e1, metalness: 1.0, roughness: 0.2 
-        });
-        const holeMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.8 });
-
         function createEyelet(x, y) {
             const group = new THREE.Group();
-            // 金屬圈
-            const torus = new THREE.Mesh(new THREE.TorusGeometry(eyeletR, 0.04, 16, 64), eyeletMat);
-            torus.rotation.x = Math.PI / 2;
-            torus.position.y = 0.1;
-            torus.castShadow = true;
+            const torus = new THREE.Mesh(new THREE.TorusGeometry(eyeletR, 0.045, 16, 64), eyeletMat);
+            torus.rotation.x = Math.PI / 2; torus.position.y = 0.12; torus.castShadow = true;
             group.add(torus);
-            // 黑洞深度
-            const hole = new THREE.Mesh(new THREE.CircleGeometry(eyeletR * 0.9, 32), holeMat);
-            hole.rotation.x = -Math.PI / 2;
-            hole.position.y = 0.02;
+
+            const hole = new THREE.Mesh(new THREE.CircleGeometry(eyeletR, 32), holeInnerMat);
+            hole.rotation.x = -Math.PI / 2; hole.position.y = 0.03;
             group.add(hole);
 
-            group.position.set(x, 0, y);
+            group.position.set(x + offset, 0, y + offset);
             scene.add(group);
             eyeletGroups.push(group);
         }
@@ -147,6 +101,7 @@
         function updateEyelets() {
             eyeletGroups.forEach(g => scene.remove(g));
             eyeletGroups = [];
+            // 如果在自動模式，起點與終點都有孔
             if (isAutoMode && startHolePos) createEyelet(startHolePos.x, startHolePos.y);
             createEyelet(targetHolePos.x, targetHolePos.y);
         }
@@ -155,37 +110,34 @@
 
         function update() {
             let head = { ...snake[0] };
-            const statusTag = document.getElementById('statusTag');
-
             if (isAutoMode) {
+                // 自動移動邏輯
                 if (Math.abs(head.x - targetHolePos.x) > 0.001) head.x += (head.x < targetHolePos.x ? gridSize : -gridSize);
                 else if (Math.abs(head.y - targetHolePos.y) > 0.001) head.y += (head.y < targetHolePos.y ? gridSize : -gridSize);
 
+                // 到達目標孔洞（出現點）
                 if (Math.abs(head.x - targetHolePos.x) < 0.001 && Math.abs(head.y - targetHolePos.y) < 0.001) {
                     isAutoMode = false;
                     startHolePos = null;
-                    statusTag.innerText = "Manual Mode";
-                    statusTag.style.background = "#ef4444";
-                    targetHolePos = { 
-                        x: Math.round(Math.random() * 10 - 5) * gridSize, 
-                        y: Math.round(Math.random() * 10 - 5) * gridSize 
-                    };
+                    document.getElementById('statusTag').innerText = "Manual Mode";
+                    document.getElementById('statusTag').style.background = "#ef4444";
+                    
+                    // 重新產生下一個目標孔洞
+                    targetHolePos = { x: Math.round(Math.random()*10-5)*gridSize, y: Math.round(Math.random()*10-5)*gridSize };
                     updateEyelets();
                 }
             } else {
                 head.x += direction.x * gridSize; head.y += direction.y * gridSize;
-                if (Math.abs(head.x) > 8 || Math.abs(head.y) > 8) location.reload();
+                if (Math.abs(head.x) > 10 || Math.abs(head.y) > 10) location.reload();
+
+                // 碰到目標孔洞（開始穿入）
                 if (Math.abs(head.x - targetHolePos.x) < 0.001 && Math.abs(head.y - targetHolePos.y) < 0.001) {
                     score++; document.getElementById('score').innerText = score;
                     isAutoMode = true;
-                    startHolePos = { ...targetHolePos };
-                    statusTag.innerText = "Auto Sliding";
-                    statusTag.style.background = "#3b82f6";
-                    targetHolePos = { 
-                        x: Math.round(Math.random() * 10 - 5) * gridSize, 
-                        y: Math.round(Math.random() * 10 - 5) * gridSize 
-                    };
-                    updateEyelets();
+                    startHolePos = { ...targetHolePos }; // 紀錄目前的穿入點
+                    document.getElementById('statusTag').innerText = "Auto Sliding";
+                    document.getElementById('statusTag').style.background = "#3b82f6";
+                    updateEyelets(); // 此時會畫出進入點與出現點的孔
                 }
             }
             snake.unshift(head);
@@ -196,11 +148,33 @@
         function renderLace() {
             laceMeshes.forEach(m => scene.remove(m));
             laceMeshes = [];
+            
             snake.forEach((pos, i) => {
+                // 自動模式中，身體隱藏，只處理頭部穿梭視覺
                 if (isAutoMode && i > 0) return;
+
                 const geo = new THREE.BoxGeometry(laceWidth, 0.08, gridSize); 
                 const mesh = new THREE.Mesh(geo, laceMat);
                 
+                let yPos = 0.12;
+                let scale = 1.0;
+                let opacity = 1.0;
+
+                // 穿梭動態修正
+                if (isAutoMode && i === 0) {
+                    // 如果頭部剛好在起點（進入點），模擬消失
+                    if (Math.abs(pos.x - startHolePos.x) < 0.01 && Math.abs(pos.y - startHolePos.y) < 0.01) {
+                        yPos = 0.05; scale = 0.7; // 縮小沉入
+                    } 
+                    // 如果頭部剛好在終點（出現點），模擬浮現
+                    else if (Math.abs(pos.x - targetHolePos.x) < 0.01 && Math.abs(pos.y - targetHolePos.y) < 0.01) {
+                        yPos = 0.08; scale = 0.9; // 浮現
+                    } else {
+                        // 在地底移動時完全不可見
+                        return; 
+                    }
+                }
+
                 if (i < snake.length - 1) {
                     const next = snake[i+1];
                     if (Math.abs(pos.x - next.x) > 0.01) mesh.rotation.y = Math.PI / 2;
@@ -208,14 +182,8 @@
                     mesh.rotation.y = Math.PI / 2;
                 }
 
-                let yPos = 0.12;
-                let scale = 1.0;
-                if (isAutoMode && i === 0) {
-                    yPos = 0.05;
-                    scale = 0.82;
-                }
                 mesh.scale.set(scale, 1, 1);
-                mesh.position.set(pos.x, yPos, pos.y);
+                mesh.position.set(pos.x + offset, yPos, pos.y + offset);
                 mesh.castShadow = true;
                 scene.add(mesh);
                 laceMeshes.push(mesh);
@@ -231,15 +199,8 @@
         });
 
         function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
-        setInterval(update, 180); // 稍微加快一點節奏感
+        setInterval(update, 200); 
         animate();
-
-        window.addEventListener('resize', () => {
-            const aspect = window.innerWidth / window.innerHeight;
-            camera.left = -d * aspect; camera.right = d * aspect;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
     </script>
 </body>
 </html>
