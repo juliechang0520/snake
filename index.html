@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>PAIHO 3D Snake - Flat Lace Edition</title>
+    <title>PAIHO 3D Snake</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         body { font-family: sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
         #root { height: 100vh; display: flex; flex-direction: column; }
@@ -17,43 +16,24 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } = React;
+    <script>
+        // 使用原生 React 寫法，徹底避開 Babel 編譯錯誤
+        const e = React.createElement;
+        const { useState, useRef, useEffect, forwardRef, useImperativeHandle } = React;
 
-        const COLORS = {
-            PAIHO_RED: '#D31A24',
-            PAIHO_DARK_RED: '#800D12',
-            GOLD: '#D4AF37',
-            CHROME: '#94A3B8',
-            HOLE: '#0F172A'
-        };
+        const COLORS = { RED: '#D31A24', DARK_RED: '#800D12', GOLD: '#D4AF37', CHROME: '#94A3B8', HOLE: '#0F172A' };
 
+        // --- 3D 渲染組件 ---
         const GameCanvas = forwardRef(({ onScoreChange, onGameOver }, ref) => {
             const containerRef = useRef();
-            const rendererRef = useRef();
-            const sceneRef = useRef();
-            const ropeMeshRef = useRef();
-            
             const stateRef = useRef({
-                status: 'PLAYER',
-                pos: new THREE.Vector3(0, 0.6, 0),
-                dir: new THREE.Vector3(0, 0, -1),
-                nextDir: null,
-                history: [],
-                activeSegments: 80,
-                score: 0,
-                targetHole: new THREE.Vector3(),
-                exitHole: new THREE.Vector3()
+                status: 'PLAYER', pos: new THREE.Vector3(0, 0.6, 0), dir: new THREE.Vector3(0, 0, -1),
+                nextDir: null, history: [], activeSegments: 80, score: 0, target: new THREE.Vector3(), exit: new THREE.Vector3()
             });
 
-            // 高品質 3D 鞋眼組件
             const createEyelet = (isGold) => {
                 const group = new THREE.Group();
-                const mat = new THREE.MeshStandardMaterial({ 
-                    color: isGold ? COLORS.GOLD : COLORS.CHROME, 
-                    metalness: 1.0, 
-                    roughness: 0.1 
-                });
+                const mat = new THREE.MeshStandardMaterial({ color: isGold ? COLORS.GOLD : COLORS.CHROME, metalness: 1, roughness: 0.1 });
                 const torus = new THREE.Mesh(new THREE.TorusGeometry(1.3, 0.15, 16, 32), mat);
                 torus.rotation.x = Math.PI/2;
                 const cyl = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 0.4, 32), mat);
@@ -63,173 +43,115 @@
                 return group;
             };
 
-            const targetObj = useRef(createEyelet(true));
-            const exitObj = useRef(createEyelet(false));
+            const targetObj = createEyelet(true);
+            const exitObj = createEyelet(false);
 
-            const spawnHole = (obj, isExit) => {
-                const range = 20;
-                const x = (Math.floor(Math.random() * range) - range/2) * 2;
-                const z = (Math.floor(Math.random() * range) - range/2) * 2;
-                obj.position.set(x, 0, z);
-                obj.visible = true;
-                if(isExit) stateRef.current.exitHole.set(x, -2.5, z);
-                else stateRef.current.targetHole.set(x, 0.6, z);
-            };
-
-            const reset = () => {
-                const s = stateRef.current;
-                s.status = 'PLAYER'; s.score = 0; s.activeSegments = 80;
-                s.pos.set(0, 0.6, 0); s.dir.set(0, 0, -1);
-                s.history = [];
-                for(let i=0; i<50; i++) s.history.push(new THREE.Vector3(0, 0.6, i * 0.1));
-                exitObj.current.visible = false;
-                spawnHole(targetObj.current, false);
-                onScoreChange(0);
+            const spawn = (obj, isExit) => {
+                const x = (Math.floor(Math.random()*16)-8)*2; const z = (Math.floor(Math.random()*16)-8)*2;
+                obj.position.set(x, 0, z); obj.visible = true;
+                if(isExit) stateRef.current.exit.set(x, -2.5, z); else stateRef.current.target.set(x, 0.6, z);
             };
 
             useImperativeHandle(ref, () => ({
-                setDirection: (x, z) => {
-                    const newDir = new THREE.Vector3(x, 0, -z).normalize();
-                    if(newDir.dot(stateRef.current.dir) > -0.5) stateRef.current.nextDir = newDir;
-                },
-                reset
+                setDir: (x, z) => { stateRef.current.nextDir = new THREE.Vector3(x,0,-z).normalize(); },
+                reset: () => {
+                    const s = stateRef.current; s.status = 'PLAYER'; s.score = 0; s.activeSegments = 80;
+                    s.pos.set(0, 0.6, 0); s.dir.set(0,0,-1); s.history = [];
+                    for(let i=0; i<50; i++) s.history.push(new THREE.Vector3(0, 0.6, i*0.1));
+                    exitObj.visible = false; spawn(targetObj, false); onScoreChange(0);
+                }
             }));
 
             useEffect(() => {
                 const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf1f5f9);
-                sceneRef.current = scene;
-                const camera = new THREE.OrthographicCamera(-30, 30, 30, -30, 0.1, 1000);
-                camera.position.set(30, 40, 30); camera.lookAt(0, 0, 0);
-
+                const cam = new THREE.OrthographicCamera(-30, 30, 30, -30, 0.1, 1000);
+                cam.position.set(30, 40, 30); cam.lookAt(0,0,0);
                 const renderer = new THREE.WebGLRenderer({ antialias: true });
                 renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
                 containerRef.current.appendChild(renderer.domElement);
 
-                scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-                const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(10, 50, 10); scene.add(sun);
+                scene.add(new THREE.AmbientLight(0xffffff, 0.8), targetObj, exitObj);
+                const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(10,50,10); scene.add(sun);
                 scene.add(new THREE.GridHelper(100, 50, 0xCBD5E1, 0xCBD5E1));
 
-                // 物理材質：模擬織帶反光 (Sheen)
-                const laceMat = new THREE.MeshPhysicalMaterial({ 
-                    color: COLORS.PAIHO_RED, 
-                    sheen: 1.0, 
-                    sheenColor: new THREE.Color(COLORS.PAIHO_DARK_RED),
-                    roughness: 0.8 
-                });
-                
-                ropeMeshRef.current = new THREE.Mesh(undefined, laceMat);
-                scene.add(ropeMeshRef.current);
-                scene.add(targetObj.current); scene.add(exitObj.current);
+                const laceMat = new THREE.MeshPhysicalMaterial({ color: COLORS.RED, sheen: 1, sheenColor: new THREE.Color(COLORS.DARK_RED), roughness: 0.8 });
+                const ropeMesh = new THREE.Mesh(undefined, laceMat); scene.add(ropeMesh);
 
-                reset();
-
+                ref.current.reset();
                 let rid;
-                const animate = () => {
-                    rid = requestAnimationFrame(animate);
-                    const s = stateRef.current;
-                    if(s.status === 'OVER') { renderer.render(scene, camera); return; }
+                const loop = () => {
+                    rid = requestAnimationFrame(loop);
+                    const s = stateRef.current; if(s.status==='OVER') { renderer.render(scene, cam); return; }
 
-                    // 邏輯處理
-                    if(s.status === 'PLAYER') {
-                        if(s.nextDir) { s.dir.lerp(s.nextDir, 0.2); }
-                        s.pos.add(s.dir.clone().multiplyScalar(0.25));
-                        if(Math.abs(s.pos.x) > 40 || Math.abs(s.pos.z) > 40) { s.status = 'OVER'; onGameOver(); }
-                        if(targetObj.current.visible && s.pos.distanceTo(targetObj.current.position) < 1.2) {
-                            s.score++; onScoreChange(s.score);
-                            s.activeSegments += 40;
-                            s.status = 'AUTO'; targetObj.current.visible = false;
-                            spawnHole(exitObj.current, true);
+                    if(s.status==='PLAYER'){
+                        if(s.nextDir) s.dir.lerp(s.nextDir, 0.2); s.pos.add(s.dir.clone().multiplyScalar(0.25));
+                        if(Math.abs(s.pos.x)>40 || Math.abs(s.pos.z)>40) { s.status='OVER'; onGameOver(); }
+                        if(targetObj.visible && s.pos.distanceTo(targetObj.position)<1.2) {
+                            s.score++; onScoreChange(s.score); s.activeSegments+=40; s.status='AUTO';
+                            targetObj.visible=false; spawn(exitObj, true);
                         }
-                    } else if (s.status === 'AUTO') {
-                        const dist = s.pos.distanceTo(s.exitHole);
-                        if(dist < 0.5) {
-                            s.pos.y = 0.6; s.status = 'PLAYER';
-                            exitObj.current.visible = false; spawnHole(targetObj.current, false);
-                        } else {
-                            const toExit = s.exitHole.clone().sub(s.pos).normalize();
-                            s.pos.add(toExit.multiplyScalar(0.4));
-                        }
+                    } else {
+                        const d = s.pos.distanceTo(s.exit);
+                        if(d<0.5) { s.pos.y=0.6; s.status='PLAYER'; exitObj.visible=false; spawn(targetObj, false); }
+                        else s.pos.add(s.exit.clone().sub(s.pos).normalize().multiplyScalar(0.4));
                     }
 
-                    // 更新軌跡
-                    if(s.history[0].distanceTo(s.pos) > 0.1) {
-                        s.history.unshift(s.pos.clone());
-                        if(s.history.length > 1000) s.history.pop();
-                    }
+                    if(s.history[0].distanceTo(s.pos)>0.1) { s.history.unshift(s.pos.clone()); if(s.history.length>1000) s.history.pop(); }
 
-                    // 生成扁平織帶幾何體
                     const pts = s.history.slice(0, s.activeSegments);
                     if(pts.length > 2) {
-                        const curve = new THREE.CatmullRomCurve3(pts);
-                        const geo = new THREE.TubeGeometry(curve, pts.length, 0.7, 8, false);
-                        
-                        // 核心修正：壓扁 Y 軸使其變成扁平帶狀
+                        const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length, 0.7, 8, false);
                         const v = geo.attributes.position;
-                        for(let i=0; i<v.count; i++) {
-                            v.setY(i, v.getY(i) * 0.2); 
-                        }
+                        for(let i=0; i<v.count; i++) v.setY(i, v.getY(i)*0.2); // 壓扁效果
                         v.needsUpdate = true;
-                        
-                        const old = ropeMeshRef.current.geometry;
-                        ropeMeshRef.current.geometry = geo;
-                        if(old) old.dispose();
+                        if(ropeMesh.geometry) ropeMesh.geometry.dispose();
+                        ropeMesh.geometry = geo;
                     }
-
-                    renderer.render(scene, camera);
+                    renderer.render(scene, cam);
                 };
-                animate();
+                loop();
                 return () => { cancelAnimationFrame(rid); renderer.dispose(); };
             }, []);
-
-            return <div ref={containerRef} className="w-full h-full" />;
+            return e('div', { ref: containerRef, className: 'w-full h-full' });
         });
 
+        // --- 主程式組件 ---
         const App = () => {
             const [score, setScore] = useState(0);
-            const [isGameOver, setIsGameOver] = useState(false);
+            const [over, setOver] = useState(false);
             const gameRef = useRef();
 
-            const btn = (label, x, z, cls="") => (
-                <div className={`w-16 h-16 bg-slate-300 rounded-full flex items-center justify-center ${cls} shadow-inner`}>
-                    <button 
-                        onPointerDown={(e) => { e.preventDefault(); gameRef.current.setDirection(x,z); }}
-                        className="w-12 h-12 bg-red-600 text-white rounded-full font-bold active:bg-red-800 shadow-md transform active:translate-y-1 transition-all"
-                    >
-                        {label}
-                    </button>
-                </div>
+            const btn = (lab, x, z, cls) => e('div', { className: 'w-16 h-16 bg-slate-300 rounded-full flex items-center justify-center shadow-inner ' + cls },
+                e('button', { 
+                    onPointerDown: (ev) => { ev.preventDefault(); gameRef.current.setDir(x, z); },
+                    className: 'w-12 h-12 bg-red-600 text-white rounded-full font-bold shadow-md active:translate-y-1'
+                }, lab)
             );
 
-            return (
-                <div className="flex flex-col h-full select-none">
-                    <header className="h-16 bg-white border-b flex items-center justify-between px-8 shadow-sm">
-                        <span className="font-black text-2xl tracking-tighter italic text-slate-800">PAIHO <span className="text-red-600 underline">LACE</span></span>
-                        <div className="bg-slate-900 text-green-400 px-6 py-1 rounded-md font-mono text-xl shadow-inner">
-                            {String(score).padStart(3, '0')}
-                        </div>
-                    </header>
-                    <main className="flex-1 relative overflow-hidden">
-                        <GameCanvas ref={gameRef} onScoreChange={setScore} onGameOver={() => setIsGameOver(true)} />
-                        {isGameOver && (
-                            <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50">
-                                <div className="bg-white p-8 rounded-3xl text-center shadow-2xl">
-                                    <h2 className="text-3xl font-black mb-4">GAME OVER</h2>
-                                    <button onClick={() => { setIsGameOver(false); gameRef.current.reset(); }} className="bg-red-600 text-white px-8 py-3 rounded-full font-bold">RESTART</button>
-                                </div>
-                            </div>
-                        )}
-                    </main>
-                    <footer className="h-64 bg-slate-100 border-t grid grid-cols-3 items-center justify-items-center p-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-                        {btn("▲", 0, 1, "col-start-2")}
-                        {btn("◀", -1, 0, "col-start-1 row-start-2")}
-                        {btn("▼", 0, -1, "col-start-2 row-start-2")}
-                        {btn("▶", 1, 0, "col-start-3 row-start-2")}
-                    </footer>
-                </div>
+            return e('div', { className: 'flex flex-col h-full' },
+                e('header', { className: 'h-16 bg-white border-b flex items-center justify-between px-8 shadow-sm' },
+                    e('span', { className: 'font-black text-2xl italic' }, 'PAIHO ', e('span', { className: 'text-red-600' }, 'LACE')),
+                    e('div', { className: 'bg-slate-900 text-green-400 px-4 py-1 rounded font-mono text-xl' }, String(score).padStart(3, '0'))
+                ),
+                e('main', { className: 'flex-1 relative' },
+                    e(GameCanvas, { ref: gameRef, onScoreChange: setScore, onGameOver: () => setOver(true) }),
+                    over && e('div', { className: 'absolute inset-0 bg-black/60 flex items-center justify-center z-50' },
+                        e('div', { className: 'bg-white p-8 rounded-3xl text-center' },
+                            e('h2', { className: 'text-2xl font-black mb-4' }, 'GAME OVER'),
+                            e('button', { onClick: () => { setOver(false); gameRef.current.reset(); }, className: 'bg-red-600 text-white px-8 py-2 rounded-full font-bold' }, 'RESTART')
+                        )
+                    )
+                ),
+                e('footer', { className: 'h-64 bg-slate-100 border-t grid grid-cols-3 items-center justify-items-center p-4' },
+                    btn("▲", 0, 1, "col-start-2"),
+                    btn("◀", -1, 0, "col-start-1 row-start-2"),
+                    btn("▼", 0, -1, "col-start-2 row-start-2"),
+                    btn("▶", 1, 0, "col-start-3 row-start-2")
+                )
             );
         };
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        ReactDOM.render(e(App), document.getElementById('root'));
     </script>
 </body>
 </html>
