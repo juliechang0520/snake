@@ -1,189 +1,50 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 織帶：50% 比例縮放版</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>我的網頁標題</title>
+    
     <style>
-        body { margin: 0; background-color: #0f172a; overflow: hidden; }
-        #ui { position: absolute; top: 20px; width: 100%; text-align: center; pointer-events: none; z-index: 10; }
-        .mode-tag { display: inline-block; padding: 4px 12px; border-radius: 99px; background: #ef4444; color: white; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; }
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
     </style>
 </head>
 <body>
 
-    <div id="ui">
-        <div id="statusTag" class="mode-tag mb-2">玩家操作</div>
-        <div class="text-white text-5xl font-black italic tracking-tighter" id="score">0</div>
+    <div class="container">
+        <h1>歡迎來到我的網頁</h1>
+        <p>這是一個完整的 HTML 結構範例。</p>
+        
+        <ul>
+            <li>HTML5 標準結構</li>
+            <li>響應式視窗設定 (Viewport)</li>
+            <li>內嵌 CSS 範例</li>
+        </ul>
+
+        <button onclick="greetUser()">點擊我</button>
     </div>
 
     <script>
-        // --- Three.js 初始化 ---
-        const scene = new THREE.Scene();
-        const aspect = window.innerWidth / window.innerHeight;
-        const d = 8; // 適中的相機視野
-        const camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
-        camera.position.set(0, 50, 0); 
-        camera.lookAt(0, 0, 0);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        document.body.appendChild(renderer.domElement);
-
-        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-        dirLight.position.set(5, 20, 5);
-        dirLight.castShadow = true;
-        scene.add(dirLight);
-
-        // --- 比例參數 (網格縮小 50%) ---
-        const gridSize = 0.5; 
-        const boxSize = gridSize * 0.8; // 織帶寬度 = 0.4
-        const eyeletR = boxSize / 2;    // 眼孔半徑 = 0.2
-        
-        let score = 0;
-        let isAutoMode = false;
-        let snake = [{ x: 0, y: 0 }];
-        let direction = { x: 1, y: 0 };
-        
-        let startHolePos = null;
-        let targetHolePos = { x: gridSize * 6, y: gridSize * 4 }; 
-        let eyeletGroups = [];
-        let laceMeshes = [];
-
-        // --- 帆布網格背景 (縮小 50%) ---
-        const textureCanvas = document.createElement('canvas');
-        textureCanvas.width = 64; textureCanvas.height = 64;
-        const tCtx = textureCanvas.getContext('2d');
-        tCtx.fillStyle = '#1e293b'; tCtx.fillRect(0, 0, 64, 64);
-        tCtx.strokeStyle = 'rgba(255,255,255,0.1)'; tCtx.lineWidth = 1;
-        tCtx.strokeRect(0, 0, 64, 64);
-        
-        const canvasTexture = new THREE.CanvasTexture(textureCanvas);
-        canvasTexture.wrapS = canvasTexture.wrapT = THREE.RepeatWrapping;
-        canvasTexture.repeat.set(60, 60); // 縮小 50% 的重複密度
-
-        const plane = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ map: canvasTexture }));
-        plane.rotation.x = -Math.PI / 2; plane.receiveShadow = true;
-        scene.add(plane);
-
-        // --- 3D 材質與組件 ---
-        const laceMat = new THREE.MeshStandardMaterial({ color: 0xcc0000, roughness: 0.6 });
-        const eyeletMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.1 });
-        const holeShadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6 });
-
-        function createEyelet(x, y) {
-            const group = new THREE.Group();
-            // 眼孔金屬圈 (管徑依比例縮小至 0.05)
-            const torus = new THREE.Mesh(new THREE.TorusGeometry(eyeletR, 0.05, 12, 32), eyeletMat);
-            torus.rotation.x = Math.PI / 2;
-            torus.position.y = 0.08;
-            torus.castShadow = true;
-            group.add(torus);
-
-            // 黑洞視覺效果
-            const holeShadow = new THREE.Mesh(new THREE.CircleGeometry(eyeletR, 32), holeShadowMat);
-            holeShadow.rotation.x = -Math.PI / 2;
-            holeShadow.position.y = 0.03;
-            group.add(holeShadow);
-
-            group.position.set(x, 0, y);
-            scene.add(group);
-            eyeletGroups.push(group);
+        function greetUser() {
+            alert('哈囉！網頁運行正常！');
         }
-
-        function updateEyelets() {
-            eyeletGroups.forEach(g => scene.remove(g));
-            eyeletGroups = [];
-            if (isAutoMode && startHolePos) createEyelet(startHolePos.x, startHolePos.y);
-            createEyelet(targetHolePos.x, targetHolePos.y);
-        }
-
-        updateEyelets();
-
-        function update() {
-            let head = { ...snake[0] };
-            if (isAutoMode) {
-                if (Math.abs(head.x - targetHolePos.x) > 0.001) head.x += (head.x < targetHolePos.x ? gridSize : -gridSize);
-                else if (Math.abs(head.y - targetHolePos.y) > 0.001) head.y += (head.y < targetHolePos.y ? gridSize : -gridSize);
-
-                if (Math.abs(head.x - targetHolePos.x) < 0.001 && Math.abs(head.y - targetHolePos.y) < 0.001) {
-                    isAutoMode = false;
-                    startHolePos = null;
-                    document.getElementById('statusTag').innerText = "玩家操作";
-                    document.getElementById('statusTag').style.background = "#ef4444";
-                    targetHolePos = { 
-                        x: (Math.floor(Math.random() * 14) - 7) * gridSize, 
-                        y: (Math.floor(Math.random() * 14) - 7) * gridSize 
-                    };
-                    updateEyelets();
-                }
-            } else {
-                head.x += direction.x * gridSize; head.y += direction.y * gridSize;
-                if (Math.abs(head.x) > 10 || Math.abs(head.y) > 10) location.reload();
-                if (Math.abs(head.x - targetHolePos.x) < 0.001 && Math.abs(head.y - targetHolePos.y) < 0.001) {
-                    score++; document.getElementById('score').innerText = score;
-                    isAutoMode = true;
-                    startHolePos = { ...targetHolePos };
-                    targetHolePos = { 
-                        x: (Math.floor(Math.random() * 14) - 7) * gridSize, 
-                        y: (Math.floor(Math.random() * 14) - 7) * gridSize 
-                    };
-                    document.getElementById('statusTag').innerText = "地下穿梭";
-                    document.getElementById('statusTag').style.background = "#3b82f6";
-                    updateEyelets();
-                }
-            }
-            snake.unshift(head);
-            if (snake.length > 12) snake.pop();
-            renderLace();
-        }
-
-        function renderLace() {
-            laceMeshes.forEach(m => scene.remove(m));
-            laceMeshes = [];
-            snake.forEach((pos, i) => {
-                if (isAutoMode && i > 0) return;
-                const geo = new THREE.BoxGeometry(boxSize, 0.08, gridSize); 
-                const mesh = new THREE.Mesh(geo, laceMat);
-                
-                let yPos = 0.1;
-                let scale = 1.0;
-                
-                if (isAutoMode && i === 0) {
-                    yPos = 0.05;
-                    scale = 0.85;
-                }
-
-                mesh.scale.set(scale, 1, 1);
-                if (i < snake.length - 1) {
-                    const next = snake[i+1];
-                    if (pos.x !== next.x) mesh.rotation.y = Math.PI / 2;
-                } else if (direction.x !== 0) {
-                    mesh.rotation.y = Math.PI / 2;
-                }
-
-                mesh.position.set(pos.x, yPos, pos.y);
-                mesh.castShadow = true;
-                scene.add(mesh);
-                laceMeshes.push(mesh);
-            });
-        }
-
-        window.addEventListener('keydown', e => {
-            if (isAutoMode) return;
-            if (e.keyCode === 37 && direction.x === 0) direction = { x: -1, y: 0 };
-            if (e.keyCode === 38 && direction.y === 0) direction = { x: 0, y: -1 };
-            if (e.keyCode === 39 && direction.x === 0) direction = { x: 1, y: 0 };
-            if (e.keyCode === 40 && direction.y === 0) direction = { x: 0, y: 1 };
-        });
-
-        function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
-        setInterval(update, 200); 
-        animate();
     </script>
+
 </body>
 </html>
